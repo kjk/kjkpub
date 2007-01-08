@@ -64,20 +64,32 @@ JSC_DBG_CFLAGS=$(COMMON_DBG_C_FLAGS)
 JSC_DBG_CXXFLAGS=$(COMMON_DBG_C_FLAGS) -fno-rtti -fno-exceptions
 
 WC_INC=-I$(JSC_DIR) -I$(WC_DIR) -I$(WC_DIR)/include\
- -I$(WC_DIR)/DerivedSources/WebCore -I$(WC_DIR)/bindings/js -I$(WC_DIR)/bridge\
- -I$(WC_DIR)/editing -I$(WC_DIR)/html -I$(WC_DIR)/css\
- -I$(WC_DIR)/dom -I$(WC_DIR)/loader -I$(WC_DIR)/loader/icon\
+ -I$(WC_DIR)/bindings/js\
+ -I$(WC_DIR)/bridge\
+ -I$(WC_DIR)/css\
+ -I$(WC_DIR)/DerivedSources/WebCore\
+ -I$(WC_DIR)/dom\
+ -I$(WC_DIR)/editing\
+ -I$(WC_DIR)/history\
+ -I$(WC_DIR)/html\
+ -I$(WC_DIR)/loader\
+ -I$(WC_DIR)/loader/gdk\
+ -I$(WC_DIR)/loader/icon\
  -I$(WC_DIR)/page\
+ -I$(WC_DIR)/page/gdk\
  -I$(WC_DIR)/platform\
+ -I$(WC_DIR)/platform/gdk\
  -I$(WC_DIR)/platform/graphics\
+ -I$(WC_DIR)/platform/graphics/cairo\
+ -I$(WC_DIR)/platform/graphics/gdk\
  -I$(WC_DIR)/platform/image-decoders -I$(WC_DIR)/platform/image-decoders/bmp\
  -I$(WC_DIR)/platform/image-decoders/gif -I$(WC_DIR)/platform/image-decoders/ico\
  -I$(WC_DIR)/platform/image-decoders/jpeg -I$(WC_DIR)/platform/image-decoders/xbm\
  -I$(WC_DIR)/platform/image-decoders/png -I$(WC_DIR)/platform/image-decoders/zlib\
- -I$(WC_DIR)/rendering -I$(WC_DIR)/xml -I$(WC_DIR)/kcanvas -I$(WC_DIR)/kcanvas/device\
- -I$(WC_DIR)/device/cairo -I$(WC_DIR)/platform/cairo\
- -I$(WC_DIR)/platform/gdk\
- -I$(WC_DIR)/platform/network -I$(WC_DIR)/platform/network/gdk
+ -I$(WC_DIR)/platform/network\
+ -I$(WC_DIR)/platform/network/gdk\
+ -I$(WC_DIR)/rendering\
+ -I$(WC_DIR)/xml
 
 WC_COMMON_C_FLAGS=-DLINUX -DUSE_CONSERVATIVE_GC=0 -DBUILDING_CAIRO__ -DBUILDING_GDK__ %s
 WC_COMMON_CXX_FLAGS=-fno-rtti -fno-exceptions `pkg-config --cflags freetype2` `pkg-config --cflags fontconfig` `pkg-config --cflags gtk+-2.0` `xml2-config --cflags` %s
@@ -347,7 +359,7 @@ testkjs_files = [
   ['./JavaScriptCore/kjs', []],
   ['./JavaScriptCore/pcre', ['ucptable.c', 'dftables.c']],
   ['./JavaScriptCore/DerivedSources/JavaScriptCore', ['chartables.c']],
-  ['./JavaScriptCore/bindings', ['testbindings.cpp']],
+  ['./JavaScriptCore/bindings', ['testbindings.cpp', 'testqtbindings.cpp']],
   ['./JavaScriptCore/bindings/c', []]]
 
 testkjs = "testkjs"
@@ -398,7 +410,7 @@ def define_wc_files(mfInfo):
 # gdklauncher target is made of these:
 gdklauncher_files = [
   ['./JavaScriptCore/DerivedSources/JavaScriptCore', ['chartables.c']],
-  ['./JavaScriptCore/bindings', ['testbindings.cpp']],
+  ['./JavaScriptCore/bindings', ['testbindings.cpp', 'testqtbindings.cpp']],
   ['./JavaScriptCore/bindings/c', []],
   ['./JavaScriptCore/kjs', ['testkjs.cpp']],
   ['./JavaScriptCore/pcre', ['ucptable.c', 'dftables.c']],
@@ -410,14 +422,15 @@ gdklauncher_files = [
   ['./WebCore/editing', []],
   ['./WebCore/history', []],
   ['./WebCore/html', []],
-  ['./WebCore/loader', ['CachedXBLDocument.cpp', 'DocumentLoader.cpp']],
+#  ['./WebCore/loader', ['CachedXBLDocument.cpp', 'DocumentLoader.cpp']],
+  ['./WebCore/loader', ['CachedXBLDocument.cpp']],
   ['./WebCore/loader/gdk', []],
   ['./WebCore/loader/icon', []],
   ['./WebCore/page', []],
   ['./WebCore/page/gdk', []],
   ['./WebCore/platform', ['CharsetNames.cpp']],
-  ['./WebCore/platform/gdk', []],
-  ['./WebCore/platform/graphics', []],
+  ['./WebCore/platform/gdk', ['ScreenGdk.cpp']],
+  ['./WebCore/platform/graphics', ['ImageBuffer.cpp']],
   ['./WebCore/platform/graphics/cairo', []],
   ['./WebCore/platform/graphics/gdk', []],
   ['./WebCore/platform/network', []],
