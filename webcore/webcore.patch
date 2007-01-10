@@ -1,6 +1,6 @@
 Index: JavaScriptCore/jscore.bkl
 ===================================================================
---- JavaScriptCore/jscore.bkl	(revision 18715)
+--- JavaScriptCore/jscore.bkl	(revision 18729)
 +++ JavaScriptCore/jscore.bkl	(working copy)
 @@ -93,10 +93,12 @@
      <lib id="jscore" template="jscore_base">
@@ -18,7 +18,7 @@ Index: JavaScriptCore/jscore.bkl
              $(JSCORE_SOURCES_KJS)
 Index: Bakefiles/presets.bkl
 ===================================================================
---- Bakefiles/presets.bkl	(revision 18715)
+--- Bakefiles/presets.bkl	(revision 18729)
 +++ Bakefiles/presets.bkl	(working copy)
 @@ -175,15 +175,10 @@
          <default-value>$(os.popen("icu-config --ldflags").read())</default-value>
@@ -36,9 +36,31 @@ Index: Bakefiles/presets.bkl
          </if>
  
          <if cond="PLATFORM_WIN32=='1'">
+Index: WebCore/platform/graphics/GraphicsContext.cpp
+===================================================================
+--- WebCore/platform/graphics/GraphicsContext.cpp	(revision 18729)
++++ WebCore/platform/graphics/GraphicsContext.cpp	(working copy)
+@@ -373,7 +373,7 @@
+ }
+ #endif
+ 
+-#if !PLATFORM(CG) && !PLATFORM(QT)
++#if !PLATFORM(CG) && !PLATFORM(QT) && !PLATFORM(GDK)
+ void GraphicsContext::setPlatformFillColor(const Color&)
+ {
+ }
+@@ -387,7 +387,7 @@
+ }
+ #endif
+ 
+-#if !PLATFORM(QT)
++#if !PLATFORM(QT) && !PLATFORM(GDK)
+ void GraphicsContext::setPlatformStrokeStyle(const StrokeStyle&)
+ {
+ }
 Index: WebCore/platform/graphics/cairo/ImageCairo.cpp
 ===================================================================
---- WebCore/platform/graphics/cairo/ImageCairo.cpp	(revision 18715)
+--- WebCore/platform/graphics/cairo/ImageCairo.cpp	(revision 18729)
 +++ WebCore/platform/graphics/cairo/ImageCairo.cpp	(working copy)
 @@ -65,12 +65,6 @@
          cairo_set_operator(context, CAIRO_OPERATOR_OVER);
@@ -74,9 +96,9 @@ Index: WebCore/platform/graphics/cairo/ImageCairo.cpp
  #endif // PLATFORM(CAIRO)
 Index: WebCore/platform/graphics/cairo/GraphicsContextCairo.cpp
 ===================================================================
---- WebCore/platform/graphics/cairo/GraphicsContextCairo.cpp	(revision 18715)
+--- WebCore/platform/graphics/cairo/GraphicsContextCairo.cpp	(revision 18729)
 +++ WebCore/platform/graphics/cairo/GraphicsContextCairo.cpp	(working copy)
-@@ -33,11 +33,15 @@
+@@ -33,11 +33,17 @@
  #include "IntRect.h"
  #include <cairo.h>
  #include <math.h>
@@ -86,47 +108,354 @@ Index: WebCore/platform/graphics/cairo/GraphicsContextCairo.cpp
  #include <cairo-win32.h>
  #endif
  
-+
 +#define notImplemented() do { fprintf(stderr, "%s FIXME: UNIMPLEMENTED %s:%d\n", __PRETTY_FUNCTION__, __FILE__, __LINE__); } while(0)
++
++//#define dmp() do { fprintf(stderr, "%s disabled=%d\n", __PRETTY_FUNCTION__, (int)paintingDisabled()); } while(0)
++#define dmp() do { } while(0)
 +
  #ifndef M_PI
  #define M_PI 3.14159265358979323846
  #endif
-@@ -457,9 +461,28 @@
-     return IntPoint(matrix.x0, matrix.y0);
+@@ -94,33 +100,39 @@
+     , m_data(new GraphicsContextPlatformPrivate)
+ {
+     m_data->context = cairo_reference(context);
++    dmp();
+ }
+ #endif
+ 
+ GraphicsContext::~GraphicsContext()
+ {
++    dmp();
+     destroyGraphicsContextPrivate(m_common);
+     delete m_data;
  }
  
--void GraphicsContext::setURLForRect(const KURL& link, const IntRect& destRect)
--{
--}
-+void GraphicsContext::setURLForRect(const KURL& link, const IntRect& destRect) {}
+ cairo_t* GraphicsContext::platformContext() const
+ {
++    dmp();
+     return m_data->context;
+ }
+ 
+ void GraphicsContext::savePlatformState()
+ {
++    dmp();
+     cairo_save(m_data->context);
+ }
+ 
+ void GraphicsContext::restorePlatformState()
+ {
++    dmp();
+     cairo_restore(m_data->context);
+ }
+ 
+ // Draws a filled rectangle with a stroked border.
+ void GraphicsContext::drawRect(const IntRect& rect)
+ {
++    dmp();
+     if (paintingDisabled())
+         return;
+     
+@@ -173,6 +185,7 @@
+ // This is only used to draw borders.
+ void GraphicsContext::drawLine(const IntPoint& point1, const IntPoint& point2)
+ {
++    dmp();
+     if (paintingDisabled())
+         return;
+ 
+@@ -265,6 +278,7 @@
+ // This method is only used to draw the little circles used in lists.
+ void GraphicsContext::drawEllipse(const IntRect& rect)
+ {
++    dmp();
+     if (paintingDisabled())
+         return;
+     
+@@ -291,16 +305,18 @@
+ // FIXME: This function needs to be adjusted to match the functionality on the Mac side.
+ void GraphicsContext::strokeArc(const IntRect& rect, int startAngle, int angleSpan)
+ {
++    dmp();
+     if (paintingDisabled())
+         return;
+     
+     int x = rect.x();
+     int y = rect.y();
+     float w = (float)rect.width();
++#if 0 // FIXME: unused so far
+     float h = (float)rect.height();
+     float scaleFactor = h / w;
+     float reverseScaleFactor = w / h;
+-    
++#endif
+     cairo_t* context = m_data->context;
+     if (strokeStyle() != NoStroke) {        
+         float r = w / 2;
+@@ -316,6 +332,7 @@
+ 
+ void GraphicsContext::drawConvexPolygon(size_t npoints, const FloatPoint* points, bool shouldAntialias)
+ {
++    dmp();
+     if (paintingDisabled())
+         return;
+ 
+@@ -347,6 +364,7 @@
+ 
+ void GraphicsContext::fillRect(const IntRect& rect, const Color& color)
+ {
++    dmp();
+     if (paintingDisabled())
+         return;
+ 
+@@ -356,6 +374,7 @@
+ 
+ void GraphicsContext::fillRect(const FloatRect& rect, const Color& color)
+ {
++    dmp();
+     if (paintingDisabled())
+         return;
+ 
+@@ -365,6 +384,7 @@
+ 
+ void GraphicsContext::clip(const IntRect& rect)
+ {
++    dmp();
+     if (paintingDisabled())
+         return;
+ 
+@@ -375,6 +395,7 @@
+ 
+ void GraphicsContext::drawFocusRing(const Color& color)
+ {
++    dmp();
+     if (paintingDisabled())
+         return;
+     int radius = (focusRingWidth() - 1) / 2;
+@@ -399,14 +420,17 @@
+ 
+ void GraphicsContext::setFocusRingClip(const IntRect&)
+ {
++    dmp();
+ }
+ 
+ void GraphicsContext::clearFocusRingClip()
+ {
++    dmp();
+ }
+ 
+ void GraphicsContext::drawLineForText(const IntPoint& point, int yOffset, int width, bool printing)
+ {
++    dmp();
+     if (paintingDisabled())
+         return;
+ 
+@@ -417,11 +441,12 @@
+ 
+ void GraphicsContext::drawLineForMisspellingOrBadGrammar(const IntPoint&, int width, bool grammar)
+ {
+-    // FIXME: Implement.
++    notImplemented();
+ }
+ 
+ FloatRect GraphicsContext::roundToDevicePixels(const FloatRect& frect)
+ {
++    dmp();
+     FloatRect result;
+     double x =frect.x();
+     double y = frect.y();
+@@ -445,22 +470,187 @@
+ 
+ void GraphicsContext::translate(float x, float y)
+ {
++    dmp();
+     cairo_t* context = m_data->context;
+     cairo_translate(context, x, y);
+ }
+ 
+ IntPoint GraphicsContext::origin()
+ {
++    dmp();
+     cairo_matrix_t matrix;
+     cairo_t* context = m_data->context;
+     cairo_get_matrix(context, &matrix);
+-    return IntPoint(matrix.x0, matrix.y0);
++    return IntPoint((int)matrix.x0, (int)matrix.y0);
+ }
+ 
++void GraphicsContext::setPlatformFillColor(const Color& col)
++{
++    dmp();
++    setColor(m_data->context, col);
++    cairo_fill(m_data->context);
++}
++
++void GraphicsContext::setPlatformStrokeColor(const Color& col)
++{
++    dmp();
++    setColor(m_data->context, col);
++    cairo_stroke(m_data->context);
++}
++
++void GraphicsContext::setPlatformStrokeThickness(float strokeThickness)
++{
++    dmp();
++    cairo_set_line_width(m_data->context, strokeThickness);
++}
++
++void GraphicsContext::setPlatformStrokeStyle(const StrokeStyle&)
++{
++    notImplemented();
++}
++
++void GraphicsContext::setPlatformFont(const Font&)
++{
++    notImplemented();
++}
++
+ void GraphicsContext::setURLForRect(const KURL& link, const IntRect& destRect)
+ {
++    notImplemented();
+ }
+ 
 +void GraphicsContext::addRoundedRectClip(const IntRect& rect, const IntSize& topLeft, const IntSize& topRight,
 +        const IntSize& bottomLeft, const IntSize& bottomRight) 
-+{ notImplemented(); }
-+void GraphicsContext::addInnerRoundedRectClip(const IntRect& rect, int thickness) { notImplemented(); }
-+void GraphicsContext::setShadow(IntSize const&, int, Color const&) { }
-+void GraphicsContext::clearShadow() { }
-+void GraphicsContext::beginTransparencyLayer(float) { }
-+void GraphicsContext::endTransparencyLayer() { }
-+void GraphicsContext::clearRect(const FloatRect&) { }
-+void GraphicsContext::strokeRect(const FloatRect&, float) { }
-+void GraphicsContext::setLineCap(LineCap) { }
-+void GraphicsContext::setLineJoin(LineJoin) { }
-+void GraphicsContext::setMiterLimit(float) { }
-+void GraphicsContext::setAlpha(float) { }
-+void GraphicsContext::setCompositeOperation(CompositeOperator) { }
-+void GraphicsContext::clip(const Path&) { }
-+void GraphicsContext::rotate(float) { }
-+void GraphicsContext::scale(const FloatSize&) { }
-+void GraphicsContext::clipOut(const IntRect&) {}
-+void GraphicsContext::clipOutEllipseInRect(const IntRect&) {}
-+void GraphicsContext::fillRoundedRect(const IntRect&, const IntSize& topLeft, const IntSize& topRight, const IntSize& bottomLeft, const IntSize& bottomRight, const Color&) {}
- 
++{
++    notImplemented(); 
++}
++
++void GraphicsContext::addInnerRoundedRectClip(const IntRect& rect, int thickness) 
++{ 
++    notImplemented(); 
++}
++
++void GraphicsContext::setShadow(IntSize const&, int, Color const&)
++{
++    notImplemented();
++}
++
++void GraphicsContext::clearShadow()
++{
++    notImplemented();
++}
++
++void GraphicsContext::beginTransparencyLayer(float)
++{
++    notImplemented();
++}
++
++void GraphicsContext::endTransparencyLayer()
++{
++    notImplemented();
++}
++
++void GraphicsContext::clearRect(const FloatRect&)
++{
++    notImplemented();
++}
++
++void GraphicsContext::strokeRect(const FloatRect&, float)
++{
++    notImplemented();
++}
++
++void GraphicsContext::setLineCap(LineCap)
++{
++    notImplemented();
++}
++
++void GraphicsContext::setLineJoin(LineJoin)
++{
++    notImplemented();
++}
++
++void GraphicsContext::setMiterLimit(float)
++{
++    notImplemented();
++}
++
++void GraphicsContext::setAlpha(float)
++{
++    notImplemented();
++}
++
++static inline cairo_operator_t to_cairo_operator(CompositeOperator op)
++{
++    switch (op) {
++        case CompositeClear:
++            return CAIRO_OPERATOR_CLEAR;
++        case CompositeCopy:
++            return CAIRO_OPERATOR_SOURCE;
++        case CompositeSourceOver:
++            return CAIRO_OPERATOR_OVER;
++        case CompositeSourceIn:
++            return CAIRO_OPERATOR_IN;
++        case CompositeSourceOut:
++            return CAIRO_OPERATOR_OUT;
++        case CompositeSourceAtop:
++            return CAIRO_OPERATOR_ATOP;
++        case CompositeDestinationOver:
++            return CAIRO_OPERATOR_DEST_OVER;
++        case CompositeDestinationIn:
++            return CAIRO_OPERATOR_DEST_IN;
++        case CompositeDestinationOut:
++            return CAIRO_OPERATOR_DEST_OUT;
++        case CompositeDestinationAtop:
++            return CAIRO_OPERATOR_DEST_ATOP;
++        case CompositeXOR:
++            return CAIRO_OPERATOR_XOR;
++        case CompositePlusDarker:
++            return CAIRO_OPERATOR_OVER;
++        case CompositeHighlight:
++            return CAIRO_OPERATOR_OVER;
++        case CompositePlusLighter:
++            return CAIRO_OPERATOR_OVER;
++    }
++
++    return CAIRO_OPERATOR_OVER;
++}
++
++void GraphicsContext::setCompositeOperation(CompositeOperator op)
++{
++    cairo_set_operator(m_data->context, to_cairo_operator(op));
++}
++
++void GraphicsContext::clip(const Path&)
++{
++    notImplemented();
++}
++
++void GraphicsContext::rotate(float)
++{
++    notImplemented();
++}
++
++void GraphicsContext::scale(const FloatSize&)
++{
++    notImplemented();
++}
++
++void GraphicsContext::clipOut(const IntRect&)
++{
++    notImplemented();
++}
++
++void GraphicsContext::clipOutEllipseInRect(const IntRect&)
++{
++    notImplemented();
++}
++
++void GraphicsContext::fillRoundedRect(const IntRect&, const IntSize& topLeft, const IntSize& topRight, const IntSize& bottomLeft, const IntSize& bottomRight, const Color&)
++{
++    notImplemented();
++}
++
  } // namespace WebCore
  
+ #endif // PLATFORM(CAIRO)
 Index: WebCore/platform/graphics/gdk/ImageGdk.cpp
 ===================================================================
---- WebCore/platform/graphics/gdk/ImageGdk.cpp	(revision 18715)
+--- WebCore/platform/graphics/gdk/ImageGdk.cpp	(revision 18729)
 +++ WebCore/platform/graphics/gdk/ImageGdk.cpp	(working copy)
 @@ -26,29 +26,26 @@
  #include "config.h"
@@ -164,7 +493,7 @@ Index: WebCore/platform/graphics/gdk/ImageGdk.cpp
      }
 Index: WebCore/platform/PlatformMenuDescription.h
 ===================================================================
---- WebCore/platform/PlatformMenuDescription.h	(revision 18715)
+--- WebCore/platform/PlatformMenuDescription.h	(revision 18729)
 +++ WebCore/platform/PlatformMenuDescription.h	(working copy)
 @@ -36,6 +36,8 @@
  typedef struct HMENU__* HMENU;
@@ -186,7 +515,7 @@ Index: WebCore/platform/PlatformMenuDescription.h
  } // namespace
 Index: WebCore/platform/network/ResourceHandleInternal.h
 ===================================================================
---- WebCore/platform/network/ResourceHandleInternal.h	(revision 18715)
+--- WebCore/platform/network/ResourceHandleInternal.h	(revision 18729)
 +++ WebCore/platform/network/ResourceHandleInternal.h	(working copy)
 @@ -94,6 +94,7 @@
          
@@ -198,7 +527,7 @@ Index: WebCore/platform/network/ResourceHandleInternal.h
          ResourceRequest m_request;
 Index: WebCore/platform/network/gdk/ResourceHandleManager.cpp
 ===================================================================
---- WebCore/platform/network/gdk/ResourceHandleManager.cpp	(revision 18715)
+--- WebCore/platform/network/gdk/ResourceHandleManager.cpp	(revision 18729)
 +++ WebCore/platform/network/gdk/ResourceHandleManager.cpp	(working copy)
 @@ -33,7 +33,7 @@
  
@@ -254,7 +583,7 @@ Index: WebCore/platform/network/gdk/ResourceHandleManager.cpp
      if (d->m_handle) {
 Index: WebCore/platform/network/gdk/ResourceHandleManager.h
 ===================================================================
---- WebCore/platform/network/gdk/ResourceHandleManager.h	(revision 18715)
+--- WebCore/platform/network/gdk/ResourceHandleManager.h	(revision 18729)
 +++ WebCore/platform/network/gdk/ResourceHandleManager.h	(working copy)
 @@ -37,7 +37,7 @@
  
@@ -267,7 +596,7 @@ Index: WebCore/platform/network/gdk/ResourceHandleManager.h
  
 Index: WebCore/platform/network/gdk/ResourceHandleCurl.cpp
 ===================================================================
---- WebCore/platform/network/gdk/ResourceHandleCurl.cpp	(revision 18715)
+--- WebCore/platform/network/gdk/ResourceHandleCurl.cpp	(revision 18729)
 +++ WebCore/platform/network/gdk/ResourceHandleCurl.cpp	(working copy)
 @@ -26,9 +26,10 @@
   */
@@ -313,7 +642,7 @@ Index: WebCore/platform/network/gdk/ResourceHandleCurl.cpp
  } // namespace WebCore
 Index: WebCore/platform/ContextMenuItem.h
 ===================================================================
---- WebCore/platform/ContextMenuItem.h	(revision 18715)
+--- WebCore/platform/ContextMenuItem.h	(revision 18729)
 +++ WebCore/platform/ContextMenuItem.h	(working copy)
 @@ -41,6 +41,8 @@
  #elif PLATFORM(WIN)
@@ -335,7 +664,7 @@ Index: WebCore/platform/ContextMenuItem.h
      // This enum needs to be in sync with WebMenuItemTag, which is defined in WebUIDelegate.h
 Index: WebCore/platform/gdk/CursorGdk.cpp
 ===================================================================
---- WebCore/platform/gdk/CursorGdk.cpp	(revision 18715)
+--- WebCore/platform/gdk/CursorGdk.cpp	(revision 18729)
 +++ WebCore/platform/gdk/CursorGdk.cpp	(working copy)
 @@ -198,6 +198,50 @@
      return c;
@@ -390,7 +719,7 @@ Index: WebCore/platform/gdk/CursorGdk.cpp
      static Cursor c = gdk_cursor_new(GDK_LEFT_PTR);
 Index: WebCore/platform/gdk/ScreenGdk.cpp
 ===================================================================
---- WebCore/platform/gdk/ScreenGdk.cpp	(revision 18715)
+--- WebCore/platform/gdk/ScreenGdk.cpp	(revision 18729)
 +++ WebCore/platform/gdk/ScreenGdk.cpp	(working copy)
 @@ -1,48 +0,0 @@
 -/*
@@ -443,7 +772,7 @@ Index: WebCore/platform/gdk/ScreenGdk.cpp
 -}
 Index: WebCore/platform/gdk/ChromeClientGdk.h
 ===================================================================
---- WebCore/platform/gdk/ChromeClientGdk.h	(revision 18715)
+--- WebCore/platform/gdk/ChromeClientGdk.h	(revision 18729)
 +++ WebCore/platform/gdk/ChromeClientGdk.h	(working copy)
 @@ -25,13 +25,19 @@
  #define ChromeClientGdk_H
@@ -509,7 +838,7 @@ Index: WebCore/platform/gdk/ChromeClientGdk.h
  #endif // ChromeClientGdk_H
 Index: WebCore/platform/gdk/RenderPopupMenuGdk.cpp
 ===================================================================
---- WebCore/platform/gdk/RenderPopupMenuGdk.cpp	(revision 18715)
+--- WebCore/platform/gdk/RenderPopupMenuGdk.cpp	(revision 18729)
 +++ WebCore/platform/gdk/RenderPopupMenuGdk.cpp	(working copy)
 @@ -30,7 +30,7 @@
  
@@ -522,7 +851,7 @@ Index: WebCore/platform/gdk/RenderPopupMenuGdk.cpp
  
 Index: WebCore/platform/gdk/ScrollViewGdk.cpp
 ===================================================================
---- WebCore/platform/gdk/ScrollViewGdk.cpp	(revision 18715)
+--- WebCore/platform/gdk/ScrollViewGdk.cpp	(revision 18729)
 +++ WebCore/platform/gdk/ScrollViewGdk.cpp	(working copy)
 @@ -231,6 +231,7 @@
  
@@ -542,12 +871,13 @@ Index: WebCore/platform/gdk/ScrollViewGdk.cpp
          LOG_ERROR("image scrollview not supported");
 Index: WebCore/platform/gdk/FrameGdk.cpp
 ===================================================================
---- WebCore/platform/gdk/FrameGdk.cpp	(revision 18715)
+--- WebCore/platform/gdk/FrameGdk.cpp	(revision 18729)
 +++ WebCore/platform/gdk/FrameGdk.cpp	(working copy)
-@@ -29,19 +29,21 @@
+@@ -29,24 +29,28 @@
  #include "FrameGdk.h"
  
  #include "ChromeClientGdk.h"
++#include "CString.h"
 +#include "Document.h"
  #include "DOMImplementation.h"
  #include "DOMWindow.h"
@@ -569,7 +899,13 @@ Index: WebCore/platform/gdk/FrameGdk.cpp
  #include "KeyboardCodes.h"
  #include "MouseEventWithHitTestResults.h"
  #include "Page.h"
-@@ -54,12 +56,16 @@
+ #include "PlatformKeyboardEvent.h"
+ #include "PlatformMouseEvent.h"
++#include "PlatformString.h"
+ #include "PlatformWheelEvent.h"
+ #include "Plugin.h"
+ #include "RenderLayer.h"
+@@ -54,12 +58,16 @@
  #include "RenderWidget.h"
  #include "ResourceHandle.h"
  #include "ResourceHandleInternal.h"
@@ -580,14 +916,14 @@ Index: WebCore/platform/gdk/FrameGdk.cpp
  #include "TypingCommand.h"
 -#include <gdk/gdk.h>
  
-+//#include <valgrind/callgrind.h>
++#include "RenderTreeAsText.h"
 +
 +#define notImplemented() do { fprintf(stderr, "%s FIXME: UNIMPLEMENTED %s:%d\n", __PRETTY_FUNCTION__, __FILE__, __LINE__); } while(0)
 +
  // This function loads resources from WebKit
  // This does not belong here and I'm not sure where
  // it should go
-@@ -75,73 +81,77 @@
+@@ -75,73 +83,86 @@
  
  namespace WebCore {
  
@@ -615,14 +951,23 @@ Index: WebCore/platform/gdk/FrameGdk.cpp
  {
 +    ASSERT(m_frame);
 +
++#if 0 // FrameQtClient version, doesn't make any difference
      m_frame->loader()->didOpenURL(url);
 -    m_beginCalled = false;
+ 
++    if (!m_frame->document()) {
++        m_frame->loader()->createEmptyDocument();
++        m_frame->loader()->didOpenURL(url);
++    }
++#else
++    m_frame->loader()->didOpenURL(url);
 +    if (!m_frame->document()) {
 +        m_frame->loader()->begin();
 +        m_frame->loader()->didOpenURL(url);
 +    }
++#endif
 +    ASSERT(m_frame->document());
- 
++
      ResourceRequest request(url);
 -    RefPtr<ResourceHandle> loader = ResourceHandle::create(request, this, 0);
 +    RefPtr<ResourceHandle> loader = ResourceHandle::create(request, this, m_frame, false);
@@ -696,7 +1041,7 @@ Index: WebCore/platform/gdk/FrameGdk.cpp
  static void doScroll(const RenderObject* r, float deltaX, float deltaY)
  {
      // FIXME: The scrolling done here should be done in the default handlers
-@@ -160,63 +170,35 @@
+@@ -160,63 +181,35 @@
      r->layer()->scrollToOffset(x, y, true, true);
  }
  
@@ -775,7 +1120,7 @@ Index: WebCore/platform/gdk/FrameGdk.cpp
  void FrameGdk::runJavaScriptAlert(String const& message)
  {
  }
-@@ -226,31 +208,30 @@
+@@ -226,31 +219,32 @@
      return true;
  }
  
@@ -796,16 +1141,18 @@ Index: WebCore/platform/gdk/FrameGdk.cpp
 -            delete ctx;
 +            gdk_window_begin_paint_region(event->any.window, event->expose.region);
 +            printf("FrameGdk::handleGdkEvent() GDK_EXPOSE, clip: (x=%d, y=%d, dx=%d, dy=%d)\n", clip.x, clip.y, clip.width, clip.height);
-+//            CALLGRIND_START_INSTRUMENTATION
-+//            CALLGRIND_TOGGLE_COLLECT
 +            cairo_t* cr = gdk_cairo_create(event->any.window);
 +            GraphicsContext ctx(cr);
 +            paint(&ctx, IntRect(clip.x, clip.y, clip.width, clip.height));
              cairo_destroy(cr);
 -            gdk_window_end_paint (event->any.window);
-+//            CALLGRIND_TOGGLE_COLLECT
-+//            CALLGRIND_STOP_INSTRUMENTATION
 +            gdk_window_end_paint(event->any.window);
++            if (document() && document()->documentElement()) {
++                String renderDump;
++                renderDump = externalRepresentation(renderer());
++                fprintf(stdout, "%s#EOF\n", renderDump.utf8().data());
++                fflush(stdout);
++            }
              break;
          }
          case GDK_SCROLL: {
@@ -819,7 +1166,7 @@ Index: WebCore/platform/gdk/FrameGdk.cpp
  
              HitTestRequest hitTestRequest(true, true);
              HitTestResult hitTestResult(wheelEvent.pos());
-@@ -276,15 +257,17 @@
+@@ -276,15 +270,17 @@
              break;
          }
          case GDK_MOTION_NOTIFY:
@@ -840,7 +1187,7 @@ Index: WebCore/platform/gdk/FrameGdk.cpp
              break;
          case GDK_KEY_PRESS:
          case GDK_KEY_RELEASE: {
-@@ -362,48 +345,4 @@
+@@ -362,48 +358,4 @@
      }
  }
  
@@ -891,7 +1238,7 @@ Index: WebCore/platform/gdk/FrameGdk.cpp
 -}
 Index: WebCore/platform/gdk/TemporaryLinkStubs.cpp
 ===================================================================
---- WebCore/platform/gdk/TemporaryLinkStubs.cpp	(revision 18715)
+--- WebCore/platform/gdk/TemporaryLinkStubs.cpp	(revision 18729)
 +++ WebCore/platform/gdk/TemporaryLinkStubs.cpp	(working copy)
 @@ -31,15 +31,25 @@
  #include "CachedResource.h"
@@ -1271,7 +1618,7 @@ Index: WebCore/platform/gdk/TemporaryLinkStubs.cpp
  Icon::Icon() { notImplemented(); }
  Icon::~Icon() { notImplemented(); }
  PassRefPtr<Icon> Icon::newIconForFile(const String& filename) { notImplemented(); return PassRefPtr<Icon>(new Icon()); }
-@@ -364,8 +330,163 @@
+@@ -364,8 +330,160 @@
  float Font::floatWidthForComplexText(const TextRun&, const TextStyle&) const { notImplemented(); return 0; }
  int Font::offsetForPositionForComplexText(const TextRun&, const TextStyle&, int, bool) const { notImplemented(); return 0; }
  
@@ -1280,13 +1627,10 @@ Index: WebCore/platform/gdk/TemporaryLinkStubs.cpp
 +String FrameLoader::overrideMediaType() const { notImplemented(); return String(); }
 +Widget* FrameLoader::createJavaAppletWidget(const IntSize&, Element*, const HashMap<String, String>&) { notImplemented(); return 0; }
 +void FrameLoader::redirectDataToPlugin(Widget* pluginWidget) { notImplemented(); }
-+int FrameLoader::getHistoryLength() { notImplemented(); return 0; }
 +String FrameLoader::referrer() const { notImplemented(); return String(); }
-+KURL FrameLoader::historyURL(int distance) { notImplemented(); return KURL();}
 +Frame* FrameLoader::createFrame(const KURL& URL, const String& name, HTMLFrameOwnerElement*, const String& referrer) { notImplemented(); return 0; }
 +void FrameLoader::partClearedInBegin() { notImplemented(); }
 +KURL FrameLoader::originalRequestURL() const { notImplemented(); return KURL(); }
-+bool FrameLoader::canGoBackOrForward(int) const { notImplemented(); return false; }
 +ObjectContentType FrameLoader::objectContentType(const KURL&, const String&) { notImplemented(); return ObjectContentNone; }
 +Widget* FrameLoader::createPlugin(Element*, const KURL&, const Vector<String>&, const Vector<String>&, const String&) { notImplemented(); return 0; }
 +void FrameLoader::checkLoadCompleteForThisFrame() { notImplemented(); }
@@ -1438,7 +1782,7 @@ Index: WebCore/platform/gdk/TemporaryLinkStubs.cpp
 -}
 Index: WebCore/platform/gdk/FrameGdk.h
 ===================================================================
---- WebCore/platform/gdk/FrameGdk.h	(revision 18715)
+--- WebCore/platform/gdk/FrameGdk.h	(revision 18729)
 +++ WebCore/platform/gdk/FrameGdk.h	(working copy)
 @@ -28,10 +28,10 @@
  #ifndef FrameGdk_H_
@@ -1614,9 +1958,14 @@ Index: WebCore/platform/gdk/FrameGdk.h
  
 Index: WebCore/platform/gdk/FontGdk.cpp
 ===================================================================
---- WebCore/platform/gdk/FontGdk.cpp	(revision 18715)
+--- WebCore/platform/gdk/FontGdk.cpp	(revision 18729)
 +++ WebCore/platform/gdk/FontGdk.cpp	(working copy)
-@@ -41,7 +41,7 @@
+@@ -37,11 +37,12 @@
+ void Font::drawGlyphs(GraphicsContext* graphicsContext, const FontData* font, const GlyphBuffer& glyphBuffer,
+                       int from, int numGlyphs, const FloatPoint& point) const
+ {
++    printf("Font::drawGlyphs()\n");
+     cairo_t* context = graphicsContext->platformContext();
  
      // Set the text color to use for drawing.
      float red, green, blue, alpha;
@@ -1625,7 +1974,7 @@ Index: WebCore/platform/gdk/FontGdk.cpp
      penColor.getRGBA(red, green, blue, alpha);
      cairo_set_source_rgba(context, red, green, blue, alpha);
  
-@@ -52,7 +52,7 @@
+@@ -52,7 +53,7 @@
  
      float offset = point.x();
  
@@ -1636,7 +1985,7 @@ Index: WebCore/platform/gdk/FontGdk.cpp
          offset += glyphBuffer.advanceAt(from + i);
 Index: WebCore/platform/ScrollView.h
 ===================================================================
---- WebCore/platform/ScrollView.h	(revision 18715)
+--- WebCore/platform/ScrollView.h	(revision 18729)
 +++ WebCore/platform/ScrollView.h	(working copy)
 @@ -129,11 +129,12 @@
  #endif
@@ -1655,7 +2004,7 @@ Index: WebCore/platform/ScrollView.h
          IntSize maximumScroll() const;
 Index: WebCore/Projects/gdk/webcore-gdk.bkl
 ===================================================================
---- WebCore/Projects/gdk/webcore-gdk.bkl	(revision 18715)
+--- WebCore/Projects/gdk/webcore-gdk.bkl	(revision 18729)
 +++ WebCore/Projects/gdk/webcore-gdk.bkl	(working copy)
 @@ -37,17 +37,18 @@
          <dirname>.</dirname>
@@ -1680,7 +2029,7 @@ Index: WebCore/Projects/gdk/webcore-gdk.bkl
          <define>NDEBUG</define>
 Index: WebCore/WebCoreSources.bkl
 ===================================================================
---- WebCore/WebCoreSources.bkl	(revision 18715)
+--- WebCore/WebCoreSources.bkl	(revision 18729)
 +++ WebCore/WebCoreSources.bkl	(working copy)
 @@ -98,15 +98,27 @@
          DerivedSources/WebCore/XPathGrammar.cpp
@@ -1820,7 +2169,7 @@ Index: WebCore/WebCoreSources.bkl
          editing/RemoveNodeCommand.cpp
 Index: WebCore/webcore-base.bkl
 ===================================================================
---- WebCore/webcore-base.bkl	(revision 18715)
+--- WebCore/webcore-base.bkl	(revision 18729)
 +++ WebCore/webcore-base.bkl	(working copy)
 @@ -49,6 +49,7 @@
          $(WEBCORE_SOURCES_JS)
@@ -1871,7 +2220,7 @@ Index: WebCore/webcore-base.bkl
  
 Index: WebCore/loader/FrameLoader.cpp
 ===================================================================
---- WebCore/loader/FrameLoader.cpp	(revision 18715)
+--- WebCore/loader/FrameLoader.cpp	(revision 18729)
 +++ WebCore/loader/FrameLoader.cpp	(working copy)
 @@ -3006,7 +3006,9 @@
  void FrameLoader::willSendRequest(ResourceLoader* loader, ResourceRequest& clientRequest, const ResourceResponse& redirectResponse)
@@ -1903,7 +2252,7 @@ Index: WebCore/loader/FrameLoader.cpp
  void FrameLoader::loadedResourceFromMemoryCache(const ResourceRequest& request, const ResourceResponse& response, int length)
 Index: WebCore/loader/FrameLoaderClient.h
 ===================================================================
---- WebCore/loader/FrameLoaderClient.h	(revision 18715)
+--- WebCore/loader/FrameLoaderClient.h	(revision 18729)
 +++ WebCore/loader/FrameLoaderClient.h	(working copy)
 @@ -93,9 +93,7 @@
  
@@ -1971,7 +2320,7 @@ Index: WebCore/loader/gdk/FrameLoaderGdk.cpp
 ===================================================================
 --- WebCore/loader/gdk/FrameLoaderGdk.cpp	(revision 0)
 +++ WebCore/loader/gdk/FrameLoaderGdk.cpp	(revision 0)
-@@ -0,0 +1,76 @@
+@@ -0,0 +1,91 @@
 +/*
 + * Copyright (C) 2006 Don Gibson <dgibson77@gmail.com>
 + *
@@ -2008,14 +2357,28 @@ Index: WebCore/loader/gdk/FrameLoaderGdk.cpp
 +#include "FrameLoadRequest.h"
 +#include "ResourceRequest.h"
 +
++#include "CString.h"
++#include "Document.h"
++#include "Element.h"
++#include "PlatformString.h"
++#include "RenderTreeAsText.h"
++#include <stdio.h>
++
 +namespace WebCore {
 +
 +void FrameLoader::didFirstLayout() 
 +{
 +    printf("FrameLoader::didFirstLayout()\n");
 +    m_firstLayoutDone = true;
-+    if (client())
++    if (client()) {
++        if (m_frame->document() && m_frame->document()->documentElement()) {
++            String renderDump;
++            renderDump = externalRepresentation(m_frame->renderer());
++            fprintf(stdout, "%s#EOF\n", renderDump.utf8().data());
++            fflush(stdout);
++        }
 +        client()->dispatchDidFirstLayout();
++    }
 +}
 +
 +void FrameLoader::urlSelected(const FrameLoadRequest& frameLoadRequest, Event* /*triggering Event*/)
@@ -2044,7 +2407,8 @@ Index: WebCore/loader/gdk/FrameLoaderGdk.cpp
 +void FrameLoader::setTitle(const String &title)
 +{
 +    printf("FrameLoader::stTitle()\n");
-+    documentLoader()->setTitle(title);
++    if (documentLoader())
++        documentLoader()->setTitle(title);
 +}
 +
 +}
@@ -2484,9 +2848,9 @@ Name: svn:executable
 
 Index: WebKitTools/GdkLauncher/main.cpp
 ===================================================================
---- WebKitTools/GdkLauncher/main.cpp	(revision 18715)
+--- WebKitTools/GdkLauncher/main.cpp	(revision 18729)
 +++ WebKitTools/GdkLauncher/main.cpp	(working copy)
-@@ -1,48 +1,22 @@
+@@ -1,48 +1,26 @@
 -#include <assert.h>
 -#include <stdio.h>
 -#include <string.h>
@@ -2502,7 +2866,10 @@ Index: WebKitTools/GdkLauncher/main.cpp
 +#include <gtk/gtk.h>
 +#include "KURL.h"
  #include "Page.h"
--#include "Document.h"
++
++#include "PlatformString.h"
++#include "FrameLoader.h"
+ #include "Document.h"
 -#include "DocLoader.h"
 -#include "DOMImplementation.h"
  
@@ -2542,7 +2909,7 @@ Index: WebKitTools/GdkLauncher/main.cpp
  static  GdkWindow *win;
  
  static void handle_event(GdkEvent *event)
-@@ -65,10 +39,9 @@
+@@ -65,31 +43,40 @@
      attr.height = 600;
      attr.window_type = GDK_WINDOW_TOPLEVEL;
      attr.wclass = GDK_INPUT_OUTPUT;
@@ -2554,11 +2921,23 @@ Index: WebKitTools/GdkLauncher/main.cpp
      gdk_window_show(win);
      url = "http://www.google.com";
      bool exitAfterLoading = false;
-@@ -78,7 +51,16 @@
++    bool useStaticPage = false;
+     for (int argPos = 1; argPos < argc; ++argPos) {
+         if (0 == strcmp(argv[argPos], "-exit-after-loading"))
+             exitAfterLoading = true;
++        else if (0 == strcmp(argv[argPos], "-static"))
++            useStaticPage = true;
          else
              url = argv[argPos];
      }
 -    frame->setExitAfterLoading(exitAfterLoading);
+-    if (url) {
+-        printf("OPENING URL == %s \n", url);
+-        frame->client()->openURL(url);
+-    } else {
+-#if 0
+-        char *pg = " <html><head><title>Google</title> <body bgcolor=#ffffff text=#000000> <p><font size=-2/>2006 Google Hello bigworld from mike</p></body></html> ";
+-        frame->createEmptyDocument();
 +
 +    Page* page = new Page(new ChromeClientGdk(), 0, 0);
 +    FrameLoaderClientGdk* frameLoaderClient = new FrameLoaderClientGdk();
@@ -2569,12 +2948,23 @@ Index: WebKitTools/GdkLauncher/main.cpp
 +    frame->setView(frameView);
 +    frameView->ScrollView::setDrawable(win);
 +
-     if (url) {
-         printf("OPENING URL == %s \n", url);
-         frame->client()->openURL(url);
++    if (useStaticPage) {
++        String pg(" <html><head><title>Google</title> <body bgcolor=#ffffff text=#000000> <p><font size=-2/>2006 Google Hello bigworld from mike</p></body></html> ");
++        frame->loader()->begin();
+         frame->document()->open();
+-        frame->write(pg,strlen(pg));
++        frame->document()->write(pg);
+         frame->document()->close();
+-#endif
++    } else {
++        printf("OPENING URL == %s \n", url);
++        frame->client()->openURL(url);
+     }
+     
+     gtk_main();
 Index: WebKitTools/GdkLauncher/gdklauncher.bkl
 ===================================================================
---- WebKitTools/GdkLauncher/gdklauncher.bkl	(revision 18715)
+--- WebKitTools/GdkLauncher/gdklauncher.bkl	(revision 18729)
 +++ WebKitTools/GdkLauncher/gdklauncher.bkl	(working copy)
 @@ -38,6 +38,7 @@
          <include>$(TOPDIR)/WebCore/css</include>
