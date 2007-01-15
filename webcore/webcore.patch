@@ -1,6 +1,6 @@
 Index: JavaScriptCore/jscore.bkl
 ===================================================================
---- JavaScriptCore/jscore.bkl	(revision 18753)
+--- JavaScriptCore/jscore.bkl	(revision 18866)
 +++ JavaScriptCore/jscore.bkl	(working copy)
 @@ -93,10 +93,12 @@
      <lib id="jscore" template="jscore_base">
@@ -18,7 +18,7 @@ Index: JavaScriptCore/jscore.bkl
              $(JSCORE_SOURCES_KJS)
 Index: Bakefiles/presets.bkl
 ===================================================================
---- Bakefiles/presets.bkl	(revision 18753)
+--- Bakefiles/presets.bkl	(revision 18866)
 +++ Bakefiles/presets.bkl	(working copy)
 @@ -175,15 +175,10 @@
          <default-value>$(os.popen("icu-config --ldflags").read())</default-value>
@@ -36,21 +36,9 @@ Index: Bakefiles/presets.bkl
          </if>
  
          <if cond="PLATFORM_WIN32=='1'">
-Index: WebCore/platform/win/TemporaryLinkStubs.cpp
-===================================================================
---- WebCore/platform/win/TemporaryLinkStubs.cpp	(revision 18753)
-+++ WebCore/platform/win/TemporaryLinkStubs.cpp	(working copy)
-@@ -207,7 +207,6 @@
- void FrameLoader::load(const FrameLoadRequest&, bool userGesture, Event*, HTMLFormElement*, const HashMap<String, String>& formValues) { notImplemented(); }
- void FrameLoader::load(const ResourceRequest&, const NavigationAction&, FrameLoadType, PassRefPtr<FormState>) { notImplemented(); }
- void FrameLoader::load(DocumentLoader*, FrameLoadType, PassRefPtr<FormState>) { notImplemented(); }
--void FrameLoader::didFirstLayout() { notImplemented(); }
- String FrameLoader::overrideMediaType() const { notImplemented(); return String(); }
- Widget* FrameLoader::createJavaAppletWidget(const IntSize&, Element*, const HashMap<String, String>&) { notImplemented(); return 0; }
- void FrameLoader::redirectDataToPlugin(Widget* pluginWidget) { notImplemented(); }
 Index: WebCore/platform/graphics/GraphicsContext.cpp
 ===================================================================
---- WebCore/platform/graphics/GraphicsContext.cpp	(revision 18753)
+--- WebCore/platform/graphics/GraphicsContext.cpp	(revision 18866)
 +++ WebCore/platform/graphics/GraphicsContext.cpp	(working copy)
 @@ -373,7 +373,7 @@
  }
@@ -72,7 +60,7 @@ Index: WebCore/platform/graphics/GraphicsContext.cpp
  }
 Index: WebCore/platform/graphics/cairo/ImageCairo.cpp
 ===================================================================
---- WebCore/platform/graphics/cairo/ImageCairo.cpp	(revision 18753)
+--- WebCore/platform/graphics/cairo/ImageCairo.cpp	(revision 18866)
 +++ WebCore/platform/graphics/cairo/ImageCairo.cpp	(working copy)
 @@ -65,12 +65,6 @@
          cairo_set_operator(context, CAIRO_OPERATOR_OVER);
@@ -108,7 +96,7 @@ Index: WebCore/platform/graphics/cairo/ImageCairo.cpp
  #endif // PLATFORM(CAIRO)
 Index: WebCore/platform/graphics/cairo/GraphicsContextCairo.cpp
 ===================================================================
---- WebCore/platform/graphics/cairo/GraphicsContextCairo.cpp	(revision 18753)
+--- WebCore/platform/graphics/cairo/GraphicsContextCairo.cpp	(revision 18866)
 +++ WebCore/platform/graphics/cairo/GraphicsContextCairo.cpp	(working copy)
 @@ -33,11 +33,14 @@
  #include "IntRect.h"
@@ -342,7 +330,7 @@ Index: WebCore/platform/graphics/cairo/GraphicsContextCairo.cpp
  #endif // PLATFORM(CAIRO)
 Index: WebCore/platform/graphics/gdk/ImageGdk.cpp
 ===================================================================
---- WebCore/platform/graphics/gdk/ImageGdk.cpp	(revision 18753)
+--- WebCore/platform/graphics/gdk/ImageGdk.cpp	(revision 18866)
 +++ WebCore/platform/graphics/gdk/ImageGdk.cpp	(working copy)
 @@ -26,29 +26,26 @@
  #include "config.h"
@@ -380,7 +368,7 @@ Index: WebCore/platform/graphics/gdk/ImageGdk.cpp
      }
 Index: WebCore/platform/PlatformMenuDescription.h
 ===================================================================
---- WebCore/platform/PlatformMenuDescription.h	(revision 18753)
+--- WebCore/platform/PlatformMenuDescription.h	(revision 18866)
 +++ WebCore/platform/PlatformMenuDescription.h	(working copy)
 @@ -36,6 +36,8 @@
  typedef struct HMENU__* HMENU;
@@ -402,9 +390,9 @@ Index: WebCore/platform/PlatformMenuDescription.h
  } // namespace
 Index: WebCore/platform/network/ResourceHandleInternal.h
 ===================================================================
---- WebCore/platform/network/ResourceHandleInternal.h	(revision 18753)
+--- WebCore/platform/network/ResourceHandleInternal.h	(revision 18866)
 +++ WebCore/platform/network/ResourceHandleInternal.h	(working copy)
-@@ -94,6 +94,7 @@
+@@ -98,6 +98,7 @@
          
          ~ResourceHandleInternal();
  
@@ -414,7 +402,7 @@ Index: WebCore/platform/network/ResourceHandleInternal.h
          ResourceRequest m_request;
 Index: WebCore/platform/network/gdk/ResourceHandleManager.cpp
 ===================================================================
---- WebCore/platform/network/gdk/ResourceHandleManager.cpp	(revision 18753)
+--- WebCore/platform/network/gdk/ResourceHandleManager.cpp	(revision 18866)
 +++ WebCore/platform/network/gdk/ResourceHandleManager.cpp	(working copy)
 @@ -45,12 +45,12 @@
      curlMultiHandle = curl_multi_init();
@@ -461,7 +449,7 @@ Index: WebCore/platform/network/gdk/ResourceHandleManager.cpp
      if (d->m_handle) {
 Index: WebCore/platform/network/gdk/ResourceHandleManager.h
 ===================================================================
---- WebCore/platform/network/gdk/ResourceHandleManager.h	(revision 18753)
+--- WebCore/platform/network/gdk/ResourceHandleManager.h	(revision 18866)
 +++ WebCore/platform/network/gdk/ResourceHandleManager.h	(working copy)
 @@ -37,7 +37,7 @@
  
@@ -474,7 +462,7 @@ Index: WebCore/platform/network/gdk/ResourceHandleManager.h
  
 Index: WebCore/platform/network/gdk/ResourceHandleCurl.cpp
 ===================================================================
---- WebCore/platform/network/gdk/ResourceHandleCurl.cpp	(revision 18753)
+--- WebCore/platform/network/gdk/ResourceHandleCurl.cpp	(revision 18866)
 +++ WebCore/platform/network/gdk/ResourceHandleCurl.cpp	(working copy)
 @@ -26,9 +26,10 @@
   */
@@ -520,7 +508,7 @@ Index: WebCore/platform/network/gdk/ResourceHandleCurl.cpp
  } // namespace WebCore
 Index: WebCore/platform/ContextMenuItem.h
 ===================================================================
---- WebCore/platform/ContextMenuItem.h	(revision 18753)
+--- WebCore/platform/ContextMenuItem.h	(revision 18866)
 +++ WebCore/platform/ContextMenuItem.h	(working copy)
 @@ -41,6 +41,8 @@
  #elif PLATFORM(WIN)
@@ -542,7 +530,7 @@ Index: WebCore/platform/ContextMenuItem.h
      // This enum needs to be in sync with WebMenuItemTag, which is defined in WebUIDelegate.h
 Index: WebCore/platform/gdk/CursorGdk.cpp
 ===================================================================
---- WebCore/platform/gdk/CursorGdk.cpp	(revision 18753)
+--- WebCore/platform/gdk/CursorGdk.cpp	(revision 18866)
 +++ WebCore/platform/gdk/CursorGdk.cpp	(working copy)
 @@ -198,6 +198,50 @@
      return c;
@@ -597,7 +585,7 @@ Index: WebCore/platform/gdk/CursorGdk.cpp
      static Cursor c = gdk_cursor_new(GDK_LEFT_PTR);
 Index: WebCore/platform/gdk/ScreenGdk.cpp
 ===================================================================
---- WebCore/platform/gdk/ScreenGdk.cpp	(revision 18753)
+--- WebCore/platform/gdk/ScreenGdk.cpp	(revision 18866)
 +++ WebCore/platform/gdk/ScreenGdk.cpp	(working copy)
 @@ -1,48 +0,0 @@
 -/*
@@ -650,7 +638,7 @@ Index: WebCore/platform/gdk/ScreenGdk.cpp
 -}
 Index: WebCore/platform/gdk/ChromeClientGdk.h
 ===================================================================
---- WebCore/platform/gdk/ChromeClientGdk.h	(revision 18753)
+--- WebCore/platform/gdk/ChromeClientGdk.h	(revision 18866)
 +++ WebCore/platform/gdk/ChromeClientGdk.h	(working copy)
 @@ -25,13 +25,19 @@
  #define ChromeClientGdk_H
@@ -716,7 +704,7 @@ Index: WebCore/platform/gdk/ChromeClientGdk.h
  #endif // ChromeClientGdk_H
 Index: WebCore/platform/gdk/RenderPopupMenuGdk.cpp
 ===================================================================
---- WebCore/platform/gdk/RenderPopupMenuGdk.cpp	(revision 18753)
+--- WebCore/platform/gdk/RenderPopupMenuGdk.cpp	(revision 18866)
 +++ WebCore/platform/gdk/RenderPopupMenuGdk.cpp	(working copy)
 @@ -30,7 +30,7 @@
  
@@ -729,7 +717,7 @@ Index: WebCore/platform/gdk/RenderPopupMenuGdk.cpp
  
 Index: WebCore/platform/gdk/FrameGdk.cpp
 ===================================================================
---- WebCore/platform/gdk/FrameGdk.cpp	(revision 18753)
+--- WebCore/platform/gdk/FrameGdk.cpp	(revision 18866)
 +++ WebCore/platform/gdk/FrameGdk.cpp	(working copy)
 @@ -28,38 +28,29 @@
  #include "config.h"
@@ -1073,7 +1061,7 @@ Index: WebCore/platform/gdk/FrameGdk.cpp
 -}
 Index: WebCore/platform/gdk/TemporaryLinkStubs.cpp
 ===================================================================
---- WebCore/platform/gdk/TemporaryLinkStubs.cpp	(revision 18753)
+--- WebCore/platform/gdk/TemporaryLinkStubs.cpp	(revision 18866)
 +++ WebCore/platform/gdk/TemporaryLinkStubs.cpp	(working copy)
 @@ -31,15 +31,25 @@
  #include "CachedResource.h"
@@ -1586,7 +1574,7 @@ Index: WebCore/platform/gdk/TemporaryLinkStubs.cpp
 -}
 Index: WebCore/platform/gdk/FrameGdk.h
 ===================================================================
---- WebCore/platform/gdk/FrameGdk.h	(revision 18753)
+--- WebCore/platform/gdk/FrameGdk.h	(revision 18866)
 +++ WebCore/platform/gdk/FrameGdk.h	(working copy)
 @@ -28,10 +28,10 @@
  #ifndef FrameGdk_H_
@@ -1763,7 +1751,7 @@ Index: WebCore/platform/gdk/FrameGdk.h
  
 Index: WebCore/platform/gdk/FontGdk.cpp
 ===================================================================
---- WebCore/platform/gdk/FontGdk.cpp	(revision 18753)
+--- WebCore/platform/gdk/FontGdk.cpp	(revision 18866)
 +++ WebCore/platform/gdk/FontGdk.cpp	(working copy)
 @@ -41,7 +41,7 @@
  
@@ -1785,7 +1773,7 @@ Index: WebCore/platform/gdk/FontGdk.cpp
          offset += glyphBuffer.advanceAt(from + i);
 Index: WebCore/platform/ScrollView.h
 ===================================================================
---- WebCore/platform/ScrollView.h	(revision 18753)
+--- WebCore/platform/ScrollView.h	(revision 18866)
 +++ WebCore/platform/ScrollView.h	(working copy)
 @@ -129,11 +129,12 @@
  #endif
@@ -1804,7 +1792,7 @@ Index: WebCore/platform/ScrollView.h
          IntSize maximumScroll() const;
 Index: WebCore/platform/image-decoders/jpeg/JPEGImageDecoder.cpp
 ===================================================================
---- WebCore/platform/image-decoders/jpeg/JPEGImageDecoder.cpp	(revision 18753)
+--- WebCore/platform/image-decoders/jpeg/JPEGImageDecoder.cpp	(revision 18866)
 +++ WebCore/platform/image-decoders/jpeg/JPEGImageDecoder.cpp	(working copy)
 @@ -128,7 +128,7 @@
      void close() {
@@ -1817,7 +1805,7 @@ Index: WebCore/platform/image-decoders/jpeg/JPEGImageDecoder.cpp
          jpeg_destroy_decompress(&m_info);
 Index: WebCore/Projects/gdk/webcore-gdk.bkl
 ===================================================================
---- WebCore/Projects/gdk/webcore-gdk.bkl	(revision 18753)
+--- WebCore/Projects/gdk/webcore-gdk.bkl	(revision 18866)
 +++ WebCore/Projects/gdk/webcore-gdk.bkl	(working copy)
 @@ -37,17 +37,18 @@
          <dirname>.</dirname>
@@ -1842,7 +1830,7 @@ Index: WebCore/Projects/gdk/webcore-gdk.bkl
          <define>NDEBUG</define>
 Index: WebCore/WebCoreSources.bkl
 ===================================================================
---- WebCore/WebCoreSources.bkl	(revision 18753)
+--- WebCore/WebCoreSources.bkl	(revision 18866)
 +++ WebCore/WebCoreSources.bkl	(working copy)
 @@ -98,15 +98,27 @@
          DerivedSources/WebCore/XPathGrammar.cpp
@@ -1982,7 +1970,7 @@ Index: WebCore/WebCoreSources.bkl
          editing/RemoveNodeCommand.cpp
 Index: WebCore/webcore-base.bkl
 ===================================================================
---- WebCore/webcore-base.bkl	(revision 18753)
+--- WebCore/webcore-base.bkl	(revision 18866)
 +++ WebCore/webcore-base.bkl	(working copy)
 @@ -49,6 +49,7 @@
          $(WEBCORE_SOURCES_JS)
@@ -2035,7 +2023,7 @@ Index: WebCore/loader/gdk/FrameLoaderClientGdk.cpp
 ===================================================================
 --- WebCore/loader/gdk/FrameLoaderClientGdk.cpp	(revision 0)
 +++ WebCore/loader/gdk/FrameLoaderClientGdk.cpp	(revision 0)
-@@ -0,0 +1,49 @@
+@@ -0,0 +1,60 @@
 +/*
 + * Copyright (C) 2006 Don Gibson <dgibson77@gmail.com>
 + *
@@ -2066,6 +2054,7 @@ Index: WebCore/loader/gdk/FrameLoaderClientGdk.cpp
 +#include "config.h"
 +#include "FrameLoaderClientGdk.h"
 +
++#include "DocumentLoader.h"
 +#include "PlatformString.h"
 +#include <stdio.h>
 +
@@ -2074,14 +2063,24 @@ Index: WebCore/loader/gdk/FrameLoaderClientGdk.cpp
 +namespace WebCore
 +{
 +
-+void FrameLoaderClientGdk::dispatchWillSendRequest(WebCore::DocumentLoader*, void*, WebCore::ResourceRequest&, const WebCore::ResourceResponse&)
++String FrameLoaderClientGdk::userAgent()
++{
++    return "Mozilla/5.0 (PC; U; Intel; Windows; en) AppleWebKit/420+ (KHTML, like Gecko)";
++}
++
++void FrameLoaderClientGdk::dispatchDidReceiveAuthenticationChallenge(DocumentLoader*, id identifier, const AuthenticationChallenge&)
 +{
 +    notImplemented();
 +}
 +
-+String FrameLoaderClientGdk::userAgent()
++void FrameLoaderClientGdk::dispatchDidCancelAuthenticationChallenge(DocumentLoader*, id identifier, const AuthenticationChallenge&)
 +{
-+    return "Mozilla/5.0 (PC; U; Intel; Windows; en) AppleWebKit/420+ (KHTML, like Gecko)";
++    notImplemented();
++}
++
++void FrameLoaderClientGdk::dispatchWillSendRequest(WebCore::DocumentLoader*, void*, WebCore::ResourceRequest&, const WebCore::ResourceResponse&)
++{
++    notImplemented();
 +}
 +
 +}
@@ -2233,7 +2232,7 @@ Index: WebCore/loader/gdk/FrameLoaderClientGdk.h
 ===================================================================
 --- WebCore/loader/gdk/FrameLoaderClientGdk.h	(revision 0)
 +++ WebCore/loader/gdk/FrameLoaderClientGdk.h	(revision 0)
-@@ -0,0 +1,162 @@
+@@ -0,0 +1,165 @@
 +/*
 + * Copyright (C) 2006 Don Gibson <dgibson77@gmail.com>
 + *
@@ -2292,6 +2291,9 @@ Index: WebCore/loader/gdk/FrameLoaderClientGdk.h
 +        virtual void detachedFromParent4();
 +
 +        virtual void loadedFromPageCache();
++
++        virtual void dispatchDidReceiveAuthenticationChallenge(DocumentLoader*, id identifier, const AuthenticationChallenge&);
++        virtual void dispatchDidCancelAuthenticationChallenge(DocumentLoader*, id identifier, const AuthenticationChallenge&);
 +
 +        virtual void download(ResourceHandle*, const ResourceRequest&, const ResourceResponse&);
 +
@@ -2593,7 +2595,7 @@ Name: svn:executable
 
 Index: WebKitTools/GdkLauncher/main.cpp
 ===================================================================
---- WebKitTools/GdkLauncher/main.cpp	(revision 18753)
+--- WebKitTools/GdkLauncher/main.cpp	(revision 18866)
 +++ WebKitTools/GdkLauncher/main.cpp	(working copy)
 @@ -1,48 +1,25 @@
 -#include <assert.h>
@@ -2710,7 +2712,7 @@ Index: WebKitTools/GdkLauncher/main.cpp
      gdk_window_destroy(win);
 Index: WebKitTools/GdkLauncher/gdklauncher.bkl
 ===================================================================
---- WebKitTools/GdkLauncher/gdklauncher.bkl	(revision 18753)
+--- WebKitTools/GdkLauncher/gdklauncher.bkl	(revision 18866)
 +++ WebKitTools/GdkLauncher/gdklauncher.bkl	(working copy)
 @@ -38,6 +38,7 @@
          <include>$(TOPDIR)/WebCore/css</include>
