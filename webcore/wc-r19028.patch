@@ -1,0 +1,3253 @@
+Index: JavaScriptCore/jscore.bkl
+===================================================================
+--- JavaScriptCore/jscore.bkl	(revision 19028)
++++ JavaScriptCore/jscore.bkl	(working copy)
+@@ -93,10 +93,11 @@
+     <lib id="jscore" template="jscore_base">
+         <objects-depend>dftables</objects-depend>
+         <pre-build-target>DerivedSources</pre-build-target>
+-        <warnings>default</warnings>
+         <cxx-rtti>off</cxx-rtti>
+         <cxx-exceptions>off</cxx-exceptions>
+         <debug-info>on</debug-info>
++        <warnings>default</warnings>
++        <optimize>off</optimize>
+         <sources>
+             $(JSCORE_SOURCES_BINDINGS)
+             $(JSCORE_SOURCES_KJS)
+Index: Bakefiles/presets.bkl
+===================================================================
+--- Bakefiles/presets.bkl	(revision 19028)
++++ Bakefiles/presets.bkl	(working copy)
+@@ -175,15 +175,10 @@
+         <default-value>$(os.popen("icu-config --ldflags").read())</default-value>
+     </option>
+ 
+-    <option name="ICU_CFLAGS">
+-        <default-value>$(os.popen("icu-config --cxxflags").read())</default-value>
+-    </option>
+-
+     <!-- IBM ICU settings -->
+     <template id="icu">
+         <if cond="FORMAT=='gnu'">
+             <ldflags>$(ICU_LIBS)</ldflags>
+-            <cxxflags>$(ICU_CFLAGS)</cxxflags>
+         </if>
+ 
+         <if cond="PLATFORM_WIN32=='1'">
+Index: WebCore/platform/GlyphPageTreeNode.h
+===================================================================
+--- WebCore/platform/GlyphPageTreeNode.h	(revision 19028)
++++ WebCore/platform/GlyphPageTreeNode.h	(working copy)
+@@ -26,8 +26,8 @@
+  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  */
+ 
+-#ifndef GlyphMap_h
+-#define GlyphMap_h
++#ifndef GlyphPageTreeNode_h
++#define GlyphPageTreeNode_h
+ 
+ #include <wtf/unicode/Unicode.h>
+ #include <wtf/Noncopyable.h>
+Index: WebCore/platform/graphics/GraphicsContext.cpp
+===================================================================
+--- WebCore/platform/graphics/GraphicsContext.cpp	(revision 19028)
++++ WebCore/platform/graphics/GraphicsContext.cpp	(working copy)
+@@ -373,7 +373,7 @@
+ }
+ #endif
+ 
+-#if !PLATFORM(CG) && !PLATFORM(QT)
++#if !PLATFORM(CG) && !PLATFORM(QT) && !PLATFORM(GDK)
+ void GraphicsContext::setPlatformFillColor(const Color&)
+ {
+ }
+@@ -387,7 +387,7 @@
+ }
+ #endif
+ 
+-#if !PLATFORM(QT)
++#if !PLATFORM(QT) && !PLATFORM(GDK)
+ void GraphicsContext::setPlatformStrokeStyle(const StrokeStyle&)
+ {
+ }
+Index: WebCore/platform/graphics/cairo/ImageCairo.cpp
+===================================================================
+--- WebCore/platform/graphics/cairo/ImageCairo.cpp	(revision 19028)
++++ WebCore/platform/graphics/cairo/ImageCairo.cpp	(working copy)
+@@ -65,12 +65,6 @@
+         cairo_set_operator(context, CAIRO_OPERATOR_OVER);
+ }
+ 
+-void BitmapImage::checkForSolidColor()
+-{
+-    // FIXME: It's easy to implement this optimization. Just need to check the RGBA32 buffer to see if it is 1x1.
+-    m_isSolidColor = false;
+-}
+-
+ void BitmapImage::draw(GraphicsContext* ctxt, const FloatRect& dst, const FloatRect& src, CompositeOperator op)
+ {
+     cairo_t* context = ctxt->platformContext();
+@@ -113,76 +107,10 @@
+ 
+ }
+ 
+-void BitmapImage::drawTiled(GraphicsContext* ctxt, const FloatRect& dstRect, const FloatPoint& srcPoint,
+-    const FloatSize& tileSize, CompositeOperator op)
++void BitmapImage::checkForSolidColor()
+ {
+-    if (!m_source.initialized())
+-        return;
+-
+-    cairo_surface_t* image = frameAtIndex(m_currentFrame);
+-    if (!image) // If it's too early we won't have an image yet.
+-        return;
+-
+-    IntSize intrinsicImageSize = size();                       
+-    FloatRect srcRect(srcPoint, intrinsicImageSize);
+-    FloatPoint point = srcPoint;
+-
+-    // Check and see if a single draw of the image can cover the entire area we are supposed to tile.
+-    float tileWidth = size().width();
+-    float tileHeight = size().height();
+-    
+-    // If the scale is not equal to the intrinsic size of the image, set transform matrix
+-    // to the appropriate scalar matrix, scale the source point, and set the size of the
+-    // scaled tile. 
+-    float scaleX = 1.0;
+-    float scaleY = 1.0;
+-    cairo_matrix_t mat;
+-    cairo_matrix_init_identity(&mat);
+-    if (tileSize.width() != intrinsicImageSize.width() || tileSize.height() != intrinsicImageSize.height()) {
+-        scaleX = intrinsicImageSize.width() / tileSize.width();
+-        scaleY = intrinsicImageSize.height() / tileSize.height();
+-        cairo_matrix_init_scale(&mat, scaleX, scaleY);
+-        
+-        tileWidth = tileSize.width();
+-        tileHeight = tileSize.height();
+-    }
+-   
+-    // We could get interesting source offsets (negative ones or positive ones.  Deal with both
+-    // out of bounds cases.
+-    float dstTileX = dstRect.x() + fmodf(fmodf(-point.x(), tileWidth) - tileWidth, tileWidth);
+-    float dstTileY = dstRect.y() + fmodf(fmodf(-point.y(), tileHeight) - tileHeight, tileHeight);
+-    FloatRect dstTileRect(dstTileX, dstTileY, tileWidth, tileHeight);
+-    
+-    float srcX = dstRect.x() - dstTileRect.x();
+-    float srcY = dstRect.y() - dstTileRect.y();
+-
+-    // If the single image draw covers the whole area, then just draw once.
+-    if (dstTileRect.contains(dstRect)) {
+-        draw(ctxt, dstRect,
+-             FloatRect(srcX * scaleX, srcY * scaleY, dstRect.width() * scaleX, dstRect.height() * scaleY), op);
+-        return;
+-    }
+-
+-    // We have to tile.
+-    cairo_t* context = ctxt->platformContext();
+-
+-    cairo_save(context);
+-
+-    // Set the compositing operation.
+-    setCompositingOperation(context, op, frameHasAlphaAtIndex(m_currentFrame));
+-
+-    cairo_translate(context, dstTileRect.x(), dstTileRect.y());
+-    cairo_pattern_t* pattern = cairo_pattern_create_for_surface(image);
+-    cairo_pattern_set_matrix(pattern, &mat);
+-    cairo_pattern_set_extend(pattern, CAIRO_EXTEND_REPEAT);
+-
+-    // Draw the image.
+-    cairo_set_source(context, pattern);
+-    cairo_rectangle(context, srcX, srcY, dstRect.width(), dstRect.height());
+-    cairo_fill(context);
+-    cairo_restore(context);
+-
+-    startAnimation();
++    // FIXME: It's easy to implement this optimization. Just need to check the RGBA32 buffer to see if it is 1x1.
++    m_isSolidColor = false;
+ }
+ 
+ }
+Index: WebCore/platform/graphics/cairo/ImageSourceCairo.cpp
+===================================================================
+--- WebCore/platform/graphics/cairo/ImageSourceCairo.cpp	(revision 19028)
++++ WebCore/platform/graphics/cairo/ImageSourceCairo.cpp	(working copy)
+@@ -100,6 +100,10 @@
+ 
+ void ImageSource::setData(const Vector<char>* data, bool allDataReceived)
+ {
++    if ( m_decoder) {
++        delete  m_decoder;
++        m_decoder = 0;
++    }
+     // Make the decoder by sniffing the bytes.
+     // This method will examine the data and instantiate an instance of the appropriate decoder plugin.
+     // If insufficient bytes are available to determine the image type, no decoder plugin will be
+Index: WebCore/platform/graphics/cairo/GraphicsContextCairo.cpp
+===================================================================
+--- WebCore/platform/graphics/cairo/GraphicsContextCairo.cpp	(revision 19028)
++++ WebCore/platform/graphics/cairo/GraphicsContextCairo.cpp	(working copy)
+@@ -28,16 +28,20 @@
+ 
+ #if PLATFORM(CAIRO)
+ 
++#include <cairo.h>
+ #include "FloatRect.h"
+ #include "Font.h"
++#include "FontData.h"
+ #include "IntRect.h"
+-#include <cairo.h>
+ #include <math.h>
++#include <stdio.h>
+ #include <wtf/MathExtras.h>
+ #if WIN32
+ #include <cairo-win32.h>
+ #endif
+ 
++#define notImplemented() do { fprintf(stderr, "%s FIXME: UNIMPLEMENTED %s:%d\n", __PRETTY_FUNCTION__, __FILE__, __LINE__); } while(0)
++
+ #ifndef M_PI
+ #define M_PI 3.14159265358979323846
+ #endif
+@@ -297,10 +301,11 @@
+     int x = rect.x();
+     int y = rect.y();
+     float w = (float)rect.width();
++#if 0 // FIXME: unused so far
+     float h = (float)rect.height();
+     float scaleFactor = h / w;
+     float reverseScaleFactor = w / h;
+-    
++#endif
+     cairo_t* context = m_data->context;
+     if (strokeStyle() != NoStroke) {        
+         float r = w / 2;
+@@ -397,12 +402,16 @@
+     cairo_stroke(m_data->context);
+ }
+ 
+-void GraphicsContext::setFocusRingClip(const IntRect&)
++void GraphicsContext::setFocusRingClip(const IntRect& rect)
+ {
++    // hopefully a no-op. Comment in CG version says that it exists
++    // to work around bugs in Mac focus ring clipping
+ }
+ 
+ void GraphicsContext::clearFocusRingClip()
+ {
++    // hopefully a no-op. Comment in CG version says that it exists
++    // to work around bugs in Mac focus ring clipping
+ }
+ 
+ void GraphicsContext::drawLineForText(const IntPoint& point, int yOffset, int width, bool printing)
+@@ -417,7 +426,7 @@
+ 
+ void GraphicsContext::drawLineForMisspellingOrBadGrammar(const IntPoint&, int width, bool grammar)
+ {
+-    // FIXME: Implement.
++    notImplemented();
+ }
+ 
+ FloatRect GraphicsContext::roundToDevicePixels(const FloatRect& frect)
+@@ -454,13 +463,201 @@
+     cairo_matrix_t matrix;
+     cairo_t* context = m_data->context;
+     cairo_get_matrix(context, &matrix);
+-    return IntPoint(matrix.x0, matrix.y0);
++    return IntPoint((int)matrix.x0, (int)matrix.y0);
+ }
+ 
++void GraphicsContext::setPlatformFillColor(const Color& col)
++{
++    setColor(m_data->context, col);
++    cairo_fill(m_data->context);
++}
++
++void GraphicsContext::setPlatformStrokeColor(const Color& col)
++{
++    setColor(m_data->context, col);
++    cairo_stroke(m_data->context);
++}
++
++void GraphicsContext::setPlatformStrokeThickness(float strokeThickness)
++{
++    cairo_set_line_width(m_data->context, strokeThickness);
++}
++
++void GraphicsContext::setPlatformStrokeStyle(const StrokeStyle& strokeStyle)
++{
++    static double dashPattern[] = {5.0, 5.0};
++    static double dotPattern[] = {1.0, 1.0};
++
++    if (paintingDisabled())
++        return;
++
++    switch (strokeStyle) {
++    case NoStroke:
++        // FIXME: is it the right way to emulate NoStroke?
++        cairo_set_line_width(m_data->context, 0);
++        break;
++    case SolidStroke:
++        cairo_set_dash(m_data->context, 0, 0, 0);
++        break;
++    case DottedStroke:
++        cairo_set_dash(m_data->context, dotPattern, 2, 0);
++        break;
++    case DashedStroke:
++        cairo_set_dash(m_data->context, dashPattern, 2, 0);
++        break;
++    default:
++        notImplemented();
++        break;
++    }
++}
++
++void GraphicsContext::setPlatformFont(const Font& font)
++{
++    if (paintingDisabled())
++        return;
++
++    // FIXME: is it the right thing to do?
++    const FontData *fontData = font.primaryFont();
++    fontData->setFont(m_data->context);
++}
++
+ void GraphicsContext::setURLForRect(const KURL& link, const IntRect& destRect)
+ {
++    notImplemented();
+ }
+ 
++void GraphicsContext::addRoundedRectClip(const IntRect& rect, const IntSize& topLeft, const IntSize& topRight,
++        const IntSize& bottomLeft, const IntSize& bottomRight) 
++{
++    notImplemented(); 
++}
++
++void GraphicsContext::addInnerRoundedRectClip(const IntRect& rect, int thickness) 
++{ 
++    notImplemented(); 
++}
++
++void GraphicsContext::setShadow(IntSize const&, int, Color const&)
++{
++    notImplemented();
++}
++
++void GraphicsContext::clearShadow()
++{
++    notImplemented();
++}
++
++void GraphicsContext::beginTransparencyLayer(float)
++{
++    notImplemented();
++}
++
++void GraphicsContext::endTransparencyLayer()
++{
++    notImplemented();
++}
++
++void GraphicsContext::clearRect(const FloatRect&)
++{
++    notImplemented();
++}
++
++void GraphicsContext::strokeRect(const FloatRect&, float)
++{
++    notImplemented();
++}
++
++void GraphicsContext::setLineCap(LineCap)
++{
++    notImplemented();
++}
++
++void GraphicsContext::setLineJoin(LineJoin)
++{
++    notImplemented();
++}
++
++void GraphicsContext::setMiterLimit(float)
++{
++    notImplemented();
++}
++
++void GraphicsContext::setAlpha(float)
++{
++    notImplemented();
++}
++
++static inline cairo_operator_t toCairoOperator(CompositeOperator op)
++{
++    switch (op) {
++        case CompositeClear:
++            return CAIRO_OPERATOR_CLEAR;
++        case CompositeCopy:
++            return CAIRO_OPERATOR_SOURCE;
++        case CompositeSourceOver:
++            return CAIRO_OPERATOR_OVER;
++        case CompositeSourceIn:
++            return CAIRO_OPERATOR_IN;
++        case CompositeSourceOut:
++            return CAIRO_OPERATOR_OUT;
++        case CompositeSourceAtop:
++            return CAIRO_OPERATOR_ATOP;
++        case CompositeDestinationOver:
++            return CAIRO_OPERATOR_DEST_OVER;
++        case CompositeDestinationIn:
++            return CAIRO_OPERATOR_DEST_IN;
++        case CompositeDestinationOut:
++            return CAIRO_OPERATOR_DEST_OUT;
++        case CompositeDestinationAtop:
++            return CAIRO_OPERATOR_DEST_ATOP;
++        case CompositeXOR:
++            return CAIRO_OPERATOR_XOR;
++        case CompositePlusDarker:
++            return CAIRO_OPERATOR_OVER;
++        case CompositeHighlight:
++            return CAIRO_OPERATOR_OVER;
++        case CompositePlusLighter:
++            return CAIRO_OPERATOR_OVER;
++    }
++
++    return CAIRO_OPERATOR_OVER;
++}
++
++void GraphicsContext::setCompositeOperation(CompositeOperator op)
++{
++    cairo_set_operator(m_data->context, toCairoOperator(op));
++}
++
++void GraphicsContext::clip(const Path&)
++{
++    notImplemented();
++}
++
++void GraphicsContext::rotate(float)
++{
++    notImplemented();
++}
++
++void GraphicsContext::scale(const FloatSize&)
++{
++    notImplemented();
++}
++
++void GraphicsContext::clipOut(const IntRect&)
++{
++    notImplemented();
++}
++
++void GraphicsContext::clipOutEllipseInRect(const IntRect&)
++{
++    notImplemented();
++}
++
++void GraphicsContext::fillRoundedRect(const IntRect&, const IntSize& topLeft, const IntSize& topRight, const IntSize& bottomLeft, const IntSize& bottomRight, const Color&)
++{
++    notImplemented();
++}
++
+ } // namespace WebCore
+ 
+ #endif // PLATFORM(CAIRO)
+Index: WebCore/platform/graphics/gdk/ImageGdk.cpp
+===================================================================
+--- WebCore/platform/graphics/gdk/ImageGdk.cpp	(revision 19028)
++++ WebCore/platform/graphics/gdk/ImageGdk.cpp	(working copy)
+@@ -26,30 +26,35 @@
+ #include "config.h"
+ #include "Image.h"
+ 
+-#if PLATFORM(CAIRO)
++#include "BitmapImage.h"
+ #include <cairo.h>
+-#else
+-#error "GDK port requires PLATFORM(CAIRO)"
+-#endif
+ 
++#define notImplemented() do { fprintf(stderr, "%s FIXME: UNIMPLEMENTED %s:%d\n", __PRETTY_FUNCTION__, __FILE__, __LINE__); } while(0)
++
+ // This function loads resources from WebKit
+ Vector<char> loadResourceIntoArray(const char*);
+ 
+ namespace WebCore {
+ 
+-    void Image::initPlatformData()
+-    {
+-    }
++void BitmapImage::initPlatformData()
++{
++}
+ 
+-    void Image::invalidatePlatformData()
+-    {
+-    }
++void BitmapImage::invalidatePlatformData()
++{
++}
+ 
+-    Image* Image::loadPlatformResource(const char *name)
+-    {
+-        Vector<char> arr = loadResourceIntoArray(name);
+-        Image* img = new Image;
+-        img->setNativeData(&arr, true);
+-        return img;
+-    }
++Image* Image::loadPlatformResource(const char *name)
++{
++    Vector<char> arr = loadResourceIntoArray(name);
++    BitmapImage* img = new BitmapImage();
++    img->setNativeData(&arr, true);
++    return img;
+ }
++
++void Image::drawPattern(GraphicsContext* ctxt, const FloatRect& tileRect, const AffineTransform& patternTransform,
++                        const FloatPoint& phase, CompositeOperator op, const FloatRect& destRect)
++{
++    notImplemented();
++}
++}
+Index: WebCore/platform/PlatformMenuDescription.h
+===================================================================
+--- WebCore/platform/PlatformMenuDescription.h	(revision 19028)
++++ WebCore/platform/PlatformMenuDescription.h	(working copy)
+@@ -36,6 +36,8 @@
+ typedef struct HMENU__* HMENU;
+ #elif PLATFORM(QT)
+ class QMenu;
++#elif PLATFORM(GDK)
++typedef struct _GtkMenu GtkMenu;
+ #endif
+ 
+ namespace WebCore {
+@@ -46,6 +48,8 @@
+     typedef HMENU PlatformMenuDescription;
+ #elif PLATFORM(QT)
+     typedef QMenu* PlatformMenuDescription;
++#elif PLATFORM(GDK)
++    typedef GtkMenu* PlatformMenuDescription;
+ #endif
+ 
+ } // namespace
+Index: WebCore/platform/network/ResourceHandleInternal.h
+===================================================================
+--- WebCore/platform/network/ResourceHandleInternal.h	(revision 19028)
++++ WebCore/platform/network/ResourceHandleInternal.h	(working copy)
+@@ -100,6 +100,7 @@
+         
+         ~ResourceHandleInternal();
+ 
++        ResourceHandleClient* client() { return m_client; }
+         ResourceHandleClient* m_client;
+         
+         ResourceRequest m_request;
+Index: WebCore/platform/network/gdk/ResourceHandleManager.cpp
+===================================================================
+--- WebCore/platform/network/gdk/ResourceHandleManager.cpp	(revision 19028)
++++ WebCore/platform/network/gdk/ResourceHandleManager.cpp	(working copy)
+@@ -45,12 +45,12 @@
+     curlMultiHandle = curl_multi_init();
+ }
+ 
+-ResourceHandleManager* ResourceHandleManager::get()
++ResourceHandleManager* ResourceHandleManager::self()
+ {
+-    static ResourceHandleManager* singleton;
+-    if (!singleton)
+-        singleton = new ResourceHandleManager;
+-    return singleton;
++    static ResourceHandleManager* self;
++    if (!self)
++        self = new ResourceHandleManager();
++    return self;
+ }
+ 
+ void ResourceHandleManager::useSimpleTransfer(bool useSimple)
+@@ -64,7 +64,7 @@
+     ResourceHandleInternal* d = job->getInternal();
+     int totalSize = size * nmemb;
+     if (d->client())
+-        d->client()->didReceiveData(job, static_cast<char*>(ptr), totalSize);
++        d->client()->didReceiveData(job, static_cast<char*>(ptr), totalSize, 0);
+     return totalSize;
+ }
+ 
+@@ -88,7 +88,6 @@
+             if (res != CURLE_OK)
+                 printf("Error WITH JOB %d\n", res);
+             if (d->client()) {
+-                d->client()->receivedAllData(job, 0);
+                 d->client()->didFinishLoading(job);
+             }
+             curl_easy_cleanup(d->m_handle);
+@@ -173,7 +172,6 @@
+     if (jobs->isEmpty())
+         m_downloadTimer.stop();
+     if (d->client()) {
+-        d->client()->receivedAllData(job, 0);
+         d->client()->didFinishLoading(job);
+     }
+     if (d->m_handle) {
+Index: WebCore/platform/network/gdk/ResourceHandleManager.h
+===================================================================
+--- WebCore/platform/network/gdk/ResourceHandleManager.h	(revision 19028)
++++ WebCore/platform/network/gdk/ResourceHandleManager.h	(working copy)
+@@ -37,7 +37,7 @@
+ 
+ class ResourceHandleManager {
+ public:
+-    static ResourceHandleManager* get();
++    static ResourceHandleManager* self();
+     void add(ResourceHandle*);
+     void cancel(ResourceHandle*);
+ 
+Index: WebCore/platform/network/gdk/ResourceHandleCurl.cpp
+===================================================================
+--- WebCore/platform/network/gdk/ResourceHandleCurl.cpp	(revision 19028)
++++ WebCore/platform/network/gdk/ResourceHandleCurl.cpp	(working copy)
+@@ -26,9 +26,10 @@
+  */
+ 
+ #include "config.h"
+-#include "ResourceHandle.h"
++#include "ResourceHandleCurl.h"
+ 
+ #include "DocLoader.h"
++#include "ResourceHandle.h"
+ #include "ResourceHandleInternal.h"
+ #include "ResourceHandleManager.h"
+ 
+@@ -43,16 +44,27 @@
+     cancel();
+ }
+ 
+-bool ResourceHandle::start(DocLoader* docLoader)
++bool ResourceHandle::start(Frame* frame)
+ {
++    ASSERT(frame);
+     ref();
+-    ResourceHandleManager::get()->add(this);
++    ResourceHandleManager::self()->add(this);
+     return true;
+ }
+ 
+ void ResourceHandle::cancel()
+ {
+-    ResourceHandleManager::get()->cancel(this);
++    ResourceHandleManager::self()->cancel(this);
+ }
+ 
++PassRefPtr<SharedBuffer> ResourceHandle::bufferedData()
++{
++    return 0;
++}
++
++bool ResourceHandle::supportsBufferedData()
++{
++    return false;
++}
++
+ } // namespace WebCore
+Index: WebCore/platform/ContextMenuItem.h
+===================================================================
+--- WebCore/platform/ContextMenuItem.h	(revision 19028)
++++ WebCore/platform/ContextMenuItem.h	(working copy)
+@@ -41,6 +41,8 @@
+ #elif PLATFORM(WIN)
+ typedef struct tagMENUITEMINFOW* LPMENUITEMINFO;
+ #elif PLATFORM(QT)
++#elif PLATFORM(GDK)
++typedef struct _GtkMenuItem GtkMenuItem;
+ #endif
+ 
+ namespace WebCore {
+@@ -53,6 +55,8 @@
+     typedef LPMENUITEMINFO PlatformMenuItemDescription;
+ #elif PLATFORM(QT)
+     typedef void* PlatformMenuItemDescription;
++#elif PLATFORM(GDK)
++    typedef GtkMenuItem* PlatformMenuItemDescription;
+ #endif
+ 
+     // This enum needs to be in sync with WebMenuItemTag, which is defined in WebUIDelegate.h
+Index: WebCore/platform/gdk/CursorGdk.cpp
+===================================================================
+--- WebCore/platform/gdk/CursorGdk.cpp	(revision 19028)
++++ WebCore/platform/gdk/CursorGdk.cpp	(working copy)
+@@ -198,6 +198,50 @@
+     return c;
+ }
+ 
++const Cursor& verticalTextCursor()
++{
++    // FIXME: optimize the way CursorQt is optmized: only one copy of a given
++    // cursor type
++    static Cursor c = gdk_cursor_new(GDK_LEFT_PTR);
++    return c;
++}
++
++const Cursor& cellCursor()
++{
++    static Cursor c = gdk_cursor_new(GDK_LEFT_PTR);
++    return c;
++}
++
++const Cursor& contextMenuCursor()
++{
++    static Cursor c = gdk_cursor_new(GDK_LEFT_PTR);
++    return c;
++}
++
++const Cursor& noDropCursor()
++{
++    static Cursor c = gdk_cursor_new(GDK_LEFT_PTR);
++    return c;
++}
++
++const Cursor& copyCursor()
++{
++    static Cursor c = gdk_cursor_new(GDK_LEFT_PTR);
++    return c;
++}
++
++const Cursor& progressCursor()
++{
++    static Cursor c = gdk_cursor_new(GDK_LEFT_PTR);
++    return c;
++}
++
++const Cursor& aliasCursor()
++{
++    static Cursor c = gdk_cursor_new(GDK_LEFT_PTR);
++    return c;
++}
++
+ const Cursor& noneCursor()
+ {
+     static Cursor c = gdk_cursor_new(GDK_LEFT_PTR);
+Index: WebCore/platform/gdk/ScreenGdk.cpp
+===================================================================
+--- WebCore/platform/gdk/ScreenGdk.cpp	(revision 19028)
++++ WebCore/platform/gdk/ScreenGdk.cpp	(working copy)
+@@ -1,48 +0,0 @@
+-/*
+- * Copyright (C) 2006 Apple Computer, Inc.  All rights reserved.
+- * Copyright (C) 2006 Michael Emmel mike.emmel@gmail.com 
+- * All rights reserved.
+- *
+- * Redistribution and use in source and binary forms, with or without
+- * modification, are permitted provided that the following conditions
+- * are met:
+- * 1. Redistributions of source code must retain the above copyright
+- *    notice, this list of conditions and the following disclaimer.
+- * 2. Redistributions in binary form must reproduce the above copyright
+- *    notice, this list of conditions and the following disclaimer in the
+- *    documentation and/or other materials provided with the distribution.
+- *
+- * THIS SOFTWARE IS PROVIDED BY APPLE COMPUTER, INC. ``AS IS'' AND ANY
+- * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL APPLE COMPUTER, INC. OR
+- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+- * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
+- */
+-
+-// FIXME: should be renamed to ScreenClientGdk.cpp
+-
+-#include "config.h"
+-#include "ScreenClientGdk.h"
+-
+-#include "FloatRect.h"
+-#include <gdk/gdk.h>
+-
+-#define notImplemented() do { fprintf(stderr, "%s FIXME: UNIMPLEMENTED %s:%d\n", __PRETTY_FUNCTION__, __FILE__, __LINE__); } while(0)
+-
+-namespace WebCore {
+-
+-int ScreenClientGdk::depth() { notImplemented(); return 32; }
+-int ScreenClientGdk::depthPerComponent() { notImplemented(); return 8; }
+-
+-bool ScreenClientGdk::isMonochrome() { notImplemented(); return false; }
+-
+-FloatRect ScreenClientGdk::rect() { notImplemented(); return FloatRect(); }
+-FloatRect ScreenClientGdk::usableRect() { notImplemented(); return FloatRect(); }
+-
+-}
+Index: WebCore/platform/gdk/ChromeClientGdk.h
+===================================================================
+--- WebCore/platform/gdk/ChromeClientGdk.h	(revision 19028)
++++ WebCore/platform/gdk/ChromeClientGdk.h	(working copy)
+@@ -25,13 +25,19 @@
+ #define ChromeClientGdk_h
+ 
+ #include "ChromeClient.h"
++#include "Shared.h"
+ 
+ namespace WebCore {
+ 
+     class ChromeClientGdk : public ChromeClient, public Shared<ChromeClientGdk> {
+     public:
+         virtual ~ChromeClientGdk() { }
+-            
++
++        virtual void chromeDestroyed();
++
++        virtual void ref() { Shared<ChromeClientGdk>::ref(); }
++        virtual void deref() { Shared<ChromeClientGdk>::deref(); }
++
+         virtual void setWindowRect(const FloatRect& r);
+         virtual FloatRect windowRect();
+ 
+@@ -39,12 +45,12 @@
+ 
+         virtual float scaleFactor();
+ 
+-        virtual void ref() { Shared<ChromeClientGdk>::ref(); }
+-        virtual void deref() { Shared<ChromeClientGdk>::deref(); }
+-
+         virtual void focus();
+         virtual void unfocus();
+ 
++        virtual bool canTakeFocus(FocusDirection);
++        virtual void takeFocus(FocusDirection);
++
+         virtual Page* createWindow(const FrameLoadRequest&);
+         virtual Page* createModalDialog(const FrameLoadRequest&);
+         virtual void show();
+@@ -54,7 +60,7 @@
+ 
+         virtual void setToolbarsVisible(bool);
+         virtual bool toolbarsVisible();
+-        
++
+         virtual void setStatusbarVisible(bool);
+         virtual bool statusbarVisible();
+         
+@@ -66,8 +72,20 @@
+ 
+         virtual void setResizable(bool);
+ 
++        virtual void addMessageToConsole(const String& message, unsigned int lineNumber,
++                                         const String& sourceID);
++
++        virtual bool canRunBeforeUnloadConfirmPanel();
++        virtual bool runBeforeUnloadConfirmPanel(const String& message, Frame* frame);
++
++        virtual void closeWindowSoon();
++
++        virtual void runJavaScriptAlert(Frame*, const String&);
++        virtual bool runJavaScriptConfirm(Frame*, const String&);
++        virtual bool runJavaScriptPrompt(Frame*, const String& message, const String& defaultValue, String& result);
++        virtual void setStatusbarText(const String&);
++
+     };
+-
+ }
+ 
+ #endif // ChromeClientGdk_h
+Index: WebCore/platform/gdk/RenderPopupMenuGdk.cpp
+===================================================================
+--- WebCore/platform/gdk/RenderPopupMenuGdk.cpp	(revision 19028)
++++ WebCore/platform/gdk/RenderPopupMenuGdk.cpp	(working copy)
+@@ -30,7 +30,7 @@
+ 
+ namespace WebCore {
+ 
+-PopupMenu::PopupMenu(RenderMenuList* menuList)
++PopupMenu::PopupMenu(PopupMenuClient* menuList)
+ {
+ }
+ 
+Index: WebCore/platform/gdk/MouseEventGdk.cpp
+===================================================================
+--- WebCore/platform/gdk/MouseEventGdk.cpp	(revision 19028)
++++ WebCore/platform/gdk/MouseEventGdk.cpp	(working copy)
+@@ -54,7 +54,9 @@
+         case GDK_2BUTTON_PRESS:
+         case GDK_3BUTTON_PRESS:
+         case GDK_BUTTON_RELEASE:
+-            if (event->type == GDK_BUTTON_PRESS)
++            if (event->type == GDK_BUTTON_RELEASE)
++                m_clickCount = 0;
++            else if (event->type == GDK_BUTTON_PRESS)
+                 m_clickCount = 1;
+             else if (event->type == GDK_2BUTTON_PRESS)
+                 m_clickCount = 2;
+Index: WebCore/platform/gdk/FrameGdk.cpp
+===================================================================
+--- WebCore/platform/gdk/FrameGdk.cpp	(revision 19028)
++++ WebCore/platform/gdk/FrameGdk.cpp	(working copy)
+@@ -28,38 +28,29 @@
+ #include "config.h"
+ #include "FrameGdk.h"
+ 
+-#include "ChromeClientGdk.h"
+-#include "DOMImplementation.h"
+-#include "DOMWindow.h"
+-#include "Document.h"
+-#include "EditorClient.h"
+-#include "Element.h"
+-#include "FrameLoadRequest.h"
++#include "EventHandler.h"
+ #include "FrameLoader.h"
+-#include "FramePrivate.h"
++#include "FrameLoaderClientGdk.h"
+ #include "FrameView.h"
++#include <gdk/gdk.h>
+ #include "GraphicsContext.h"
+-#include "HTMLDocument.h"
+ #include "HitTestRequest.h"
+ #include "HitTestResult.h"
+ #include "KeyboardCodes.h"
+-#include "MouseEventWithHitTestResults.h"
+ #include "Page.h"
+ #include "PlatformKeyboardEvent.h"
+ #include "PlatformMouseEvent.h"
++#include "PlatformString.h"
+ #include "PlatformWheelEvent.h"
+-#include "Plugin.h"
+-#include "RenderLayer.h"
+ #include "RenderObject.h"
+-#include "RenderWidget.h"
+ #include "ResourceHandle.h"
+-#include "ResourceHandleInternal.h"
+-#include "SSLKeyGenerator.h"
++#include "ResourceResponse.h"
+ #include "SelectionController.h"
+ #include "Settings.h"
+ #include "TypingCommand.h"
+-#include <gdk/gdk.h>
+ 
++#define notImplemented() do { fprintf(stderr, "%s FIXME: UNIMPLEMENTED %s:%d\n", __PRETTY_FUNCTION__, __FILE__, __LINE__); } while(0)
++
+ // This function loads resources from WebKit
+ // This does not belong here and I'm not sure where
+ // it should go
+@@ -75,73 +66,72 @@
+ 
+ namespace WebCore {
+ 
+-FrameGdkClientDefault::FrameGdkClientDefault()
+-    : ResourceHandleClient()
+-    , m_frame(0)
+-    , m_beginCalled(false)
++FrameGdkClient::FrameGdkClient()
++    : ResourceHandleClient(),
++      m_frame(0)
+ {
+ }
+ 
+-FrameGdkClientDefault::~FrameGdkClientDefault()
++FrameGdkClient::~FrameGdkClient()
+ {
+ }
+ 
+-void FrameGdkClientDefault::setFrame(const FrameGdk* frame)
++void FrameGdkClient::setFrame(const FrameGdk* frame)
+ {
+     m_frame = const_cast<FrameGdk*>(frame);
+ }
+ 
+-void FrameGdkClientDefault::openURL(const KURL& url)
++void FrameGdkClient::openURL(const KURL& url)
+ {
+-    m_frame->loader()->didOpenURL(url);
+-    m_beginCalled = false;
++    ASSERT(m_frame);
+ 
+-    ResourceRequest request(url);
+-    RefPtr<ResourceHandle> loader = ResourceHandle::create(request, this, 0);
++    m_frame->loader()->load(url);
+ }
+ 
+-void FrameGdkClientDefault::submitForm(const String& method, const KURL& url, const FormData* postData)
++void FrameGdkClient::submitForm(const String& method, const KURL& url, PassRefPtr<FormData> postData)
+ {
+-    m_beginCalled = false;
++    ASSERT(m_frame);
+ 
+     ResourceRequest request(url);
+     request.setHTTPMethod(method);
+-    request.setHTTPBody(*postData);
++    request.setHTTPBody(postData);
+ 
+-    RefPtr<ResourceHandle> loader = ResourceHandle::create(request, this, 0);
++    RefPtr<ResourceHandle> loader = ResourceHandle::create(request, this, m_frame, false);
++    loader.get()->ref();
+ }
+ 
+-void FrameGdkClientDefault::receivedResponse(ResourceHandle*, PlatformResponse)
++void FrameGdkClient::didReceiveResponse(ResourceHandle* job, const ResourceResponse& response)
+ {
+-    // no-op
+-}
++    m_frame->loader()->setResponseMIMEType(response.mimeType());
+ 
+-void FrameGdkClientDefault::didReceiveData(ResourceHandle* job, const char* data, int length)
+-{
+-    if (!m_beginCalled) {
+-        m_beginCalled = true;
+-
+-#if 0  // FIXME: This is from Qt version, need to be removed or Gdk equivalent written
+-        // Assign correct mimetype _before_ calling begin()!
+-        ResourceHandleInternal* d = job->getInternal();
+-        if (d) {
+-            ResourceRequest request(m_frame->resourceRequest());
+-            request.m_responseMIMEType = d->m_mimetype;
+-            m_frame->setResourceRequest(request);
+-        }
+-#endif
++    // TODO: Allow user overrides of the encoding...
++    // This calls begin() for us, despite the misleading name
++    if (response.textEncodingName().length()) {
++        m_frame->loader()->setEncoding(response.textEncodingName(), false);
++    } else {
+         m_frame->loader()->begin(job->url());
+     }
++}
+ 
++void FrameGdkClient::didReceiveData(ResourceHandle* job, const char* data, int length, int)
++{
+     m_frame->loader()->write(data, length);
+ }
+ 
+-void FrameGdkClientDefault::receivedAllData(ResourceHandle* job, PlatformData data)
++void FrameGdkClient::didFinishLoading(ResourceHandle* handle)
+ {
+     m_frame->loader()->end();
+-    m_beginCalled = false;
++    m_frame->loader()->checkCompleted();
++    handle->deref();
+ }
+ 
++void FrameGdkClient::didFail(ResourceHandle* handle, const ResourceError&)
++{
++    m_frame->loader()->end();
++    m_frame->loader()->checkCompleted();
++    handle->deref();
++}
++
+ static void doScroll(const RenderObject* r, float deltaX, float deltaY)
+ {
+     // FIXME: The scrolling done here should be done in the default handlers
+@@ -160,97 +150,66 @@
+     r->layer()->scrollToOffset(x, y, true, true);
+ }
+ 
+-FrameGdk::FrameGdk(GdkDrawable* gdkdrawable)
+-    : Frame(new Page(new ChromeClientGdk()), 0, 0), m_drawable(gdkdrawable)
++FrameGdk::FrameGdk(Page* page, HTMLFrameOwnerElement* ownerElement, 
++         FrameGdkClient* frameClient, FrameLoaderClientGdk* frameLoader)
++    : Frame(page, ownerElement, frameLoader)
+ {
+     Settings* settings = new Settings;
+-    settings->setAutoLoadImages(true);
+-    settings->setMinFontSize(5);
+-    settings->setMinLogicalFontSize(5);
++    settings->setLoadsImagesAutomatically(true);
++    settings->setMinimumFontSize(5);
++    settings->setMinimumLogicalFontSize(5);
+     settings->setShouldPrintBackgrounds(true);
++    settings->setJavaScriptEnabled(true);
+ 
+-    settings->setMediumFixedFontSize(14);
+-    settings->setMediumFontSize(14);
+-    settings->setSerifFontName("Times New Roman");
+-    settings->setSansSerifFontName("Arial");
+-    settings->setFixedFontName("Courier");
+-    settings->setStdFontName("Arial");
++    settings->setDefaultFixedFontSize(14);
++    settings->setDefaultFontSize(14);
++    settings->setSerifFontFamily("Times New Roman");
++    settings->setSansSerifFontFamily("Arial");
++    settings->setFixedFontFamily("Courier");
++    settings->setStandardFontFamily("Arial");
++
+     setSettings(settings);
+-    FrameView* view = new FrameView(this);
+-    setView(view);
+-    IntRect geom = frameGeometry();
+-    view->resize(geom.width(), geom.height());
+-    view->ScrollView::setDrawable(gdkdrawable);
+ 
+-    m_client = new FrameGdkClientDefault();
++    m_client = frameClient;
+     m_client->setFrame(this);
++    frameLoader->setFrame(this);
+ }
+ 
+-FrameGdk::FrameGdk(Page* page, Element* element, PassRefPtr<EditorClient> editorClient)
+-    : Frame(page,element, editorClient)
+-{
+-    Settings* settings = new Settings;
+-    settings->setAutoLoadImages(true);
+-    setSettings(settings);
+-    m_client = new FrameGdkClientDefault();
+-    m_client->setFrame(this);
+-}
+-
+ FrameGdk::~FrameGdk()
+ {
+     loader()->cancelAndClear();
+ }
+ 
+-
+-void FrameGdk::urlSelected(const FrameLoadRequest& frameLoadRequest, Event*)
+-{
+-    ResourceRequest request = frameLoadRequest.resourceRequest();
+-
+-    if (!client())
+-        return;
+-
+-    client()->openURL(request.url());
+-}
+-
+-String FrameGdk::userAgent() const
+-{
+-    return "Mozilla/5.0 (PC; U; Intel; Linux; en) AppleWebKit/420+ (KHTML, like Gecko)";
+-}
+-
+-void FrameGdk::runJavaScriptAlert(String const& message)
+-{
+-}
+-
+-bool FrameGdk::runJavaScriptConfirm(String const& message)
+-{
+-    return true;
+-}
+-
+-void FrameGdk::setTitle(const String &title)
+-{
+-}
+-
+ void FrameGdk::handleGdkEvent(GdkEvent* event)
+ {
+     switch (event->type) {
+         case GDK_EXPOSE: {
+             GdkRectangle clip;
+             gdk_region_get_clipbox(event->expose.region, &clip);
+-            gdk_window_begin_paint_region (event->any.window, event->expose.region);
+-            cairo_t* cr = gdk_cairo_create (event->any.window);
+-            GraphicsContext* ctx = new GraphicsContext(cr);
+-            paint(ctx, IntRect(clip.x, clip.y, clip.width, clip.height));
+-            delete ctx;
++            gdk_window_begin_paint_region(event->any.window, event->expose.region);
++            cairo_t* cr = gdk_cairo_create(event->any.window);
++            GraphicsContext ctx(cr);
++            paint(&ctx, IntRect(clip.x, clip.y, clip.width, clip.height));
+             cairo_destroy(cr);
+-            gdk_window_end_paint (event->any.window);
++            gdk_window_end_paint(event->any.window);
+             break;
+         }
++
++        case GDK_CONFIGURE: {
++            int w = event->configure.width;
++            int h = event->configure.height;
++            // FIXME: find a way to resize the content
++            // setFrameGeometry() ?
++            // windows seem to just do sendResizeEvent(); but it doesn't work
++            // for me
++            break;
++        }
++
+         case GDK_SCROLL: {
+             PlatformWheelEvent wheelEvent(event);
+-            view()->handleWheelEvent(wheelEvent);
+-            if (wheelEvent.isAccepted()) {
++            view()->wheelEvent(wheelEvent);
++            if (wheelEvent.isAccepted())
+                 return;
+-            }
+ 
+             HitTestRequest hitTestRequest(true, true);
+             HitTestResult hitTestResult(wheelEvent.pos());
+@@ -276,15 +235,15 @@
+             break;
+         }
+         case GDK_MOTION_NOTIFY:
+-            view()->handleMouseMoveEvent(event);
++            eventHandler()->handleMouseMoveEvent(PlatformMouseEvent(event));
+             break;
+         case GDK_BUTTON_PRESS:
+         case GDK_2BUTTON_PRESS:
+         case GDK_3BUTTON_PRESS:
+-            view()->handleMousePressEvent(event);
++            eventHandler()->handleMousePressEvent(PlatformMouseEvent(event));
+             break;
+         case GDK_BUTTON_RELEASE:
+-            view()->handleMouseReleaseEvent(event);
++            eventHandler()->handleMouseReleaseEvent(PlatformMouseEvent(event));
+             break;
+         case GDK_KEY_PRESS:
+         case GDK_KEY_RELEASE: {
+@@ -362,48 +321,4 @@
+     }
+ }
+ 
+-void FrameGdk::setFrameGeometry(const IntRect &r)
+-{
+-    if (!m_drawable || !GDK_IS_WINDOW(m_drawable))
+-        return;
+-    GdkWindow* window = GDK_WINDOW(m_drawable);
+-    gdk_window_move_resize(window, r.x(), r.y(), r.width(), r.height());
+ }
+-
+-IntRect FrameGdk::frameGeometry() const
+-{
+-    gint x, y, width, height, depth;
+-    if (!m_drawable)
+-        return IntRect();
+-
+-    if (!GDK_IS_WINDOW(m_drawable)) {
+-        gdk_drawable_get_size(m_drawable, &width, &height);
+-        return IntRect(0, 0, width, height);
+-    }
+-
+-    GdkWindow* window = GDK_WINDOW(m_drawable);
+-    gdk_window_get_geometry(window, &x, &y, &width, &height, &depth);
+-    return IntRect(x, y, width, height);
+-}
+-
+-bool FrameGdk::passWheelEventToChildWidget(Node* node)
+-{
+-    if (!node)
+-        return false;
+-    RenderObject* renderer = node->renderer();
+-    if (!renderer || !renderer->isWidget())
+-        return false;
+-    Widget* widget = static_cast<RenderWidget*>(renderer)->widget();
+-    if (!widget)
+-        return false;
+-    return true;
+-}
+-
+-bool FrameGdk::passSubframeEventToSubframe(MouseEventWithHitTestResults& mev, Frame*)
+-{
+-    if (mev.targetNode() == 0)
+-        return true;
+-    return false;
+-}
+-
+-}
+Index: WebCore/platform/gdk/TemporaryLinkStubs.cpp
+===================================================================
+--- WebCore/platform/gdk/TemporaryLinkStubs.cpp	(revision 19028)
++++ WebCore/platform/gdk/TemporaryLinkStubs.cpp	(working copy)
+@@ -31,15 +31,25 @@
+ #include "CachedResource.h"
+ #include "ChromeClientGdk.h"
+ #include "CookieJar.h"
++#include "ContextMenu.h"
++#include "ContextMenuItem.h"
++#include "Clipboard.h"
+ #include "CString.h"
+ #include "Cursor.h"
++#include "DocumentFragment.h"
++#include "DocumentLoader.h"
+ #include "EditCommand.h"
++#include "Editor.h"
+ #include "FileChooser.h"
+ #include "Font.h"
+ #include "FrameGdk.h"
++#include "FrameLoader.h"
++#include "FrameLoaderClientGdk.h"
+ #include "FrameLoadRequest.h"
+ #include "FrameView.h"
+ #include "GraphicsContext.h"
++#include <gtk/gtk.h>
++#include "HTMLFrameOwnerElement.h"
+ #include "History.h"
+ #include "Icon.h"
+ #include "IconDatabase.h"
+@@ -49,46 +59,33 @@
+ #include "Language.h"
+ #include "loader.h"
+ #include "LocalizedStrings.h"
++#include "MainResourceLoader.h"
+ #include "Node.h"
++#include "PageCache.h"
++#include "Pasteboard.h"
+ #include "Path.h"
+ #include "PlatformMouseEvent.h"
+ #include "PlatformScrollBar.h"
+ #include "PlugInInfoStore.h"
+-#include "RenderTheme.h"
+-#include "RenderThemeGdk.h"
++#include "ResourceError.h"
++#include "ResourceHandle.h"
+ #include "ResourceLoader.h"
+ #include "Screen.h"
+ #include "ScrollBar.h"
+-#include "Slider.h"
++#include "SearchPopupMenu.h"
++#include <stdio.h>
+ #include "TextBoundaries.h"
+-#include "TextField.h"
+ #include "Widget.h"
+-#include <stdio.h>
+-#include <stdlib.h>
+ 
+ using namespace WebCore;
+ 
+ #define notImplemented() do { fprintf(stderr, "%s FIXME: UNIMPLEMENTED %s:%d\n", __PRETTY_FUNCTION__, __FILE__, __LINE__); } while(0)
+ 
+ namespace WebCore {
+-
+ class Page;
+-
+-struct PlatformDataStruct
+-{
+-};
+-
+-struct PlatformResponseStruct
+-{
+-};
+ }
+ 
+ void FrameView::updateBorder() { notImplemented(); }
+-bool FrameView::passMousePressEventToScrollbar(MouseEventWithHitTestResults&, PlatformScrollbar*) { return false; }
+-bool FrameView::passMousePressEventToSubframe(MouseEventWithHitTestResults&, Frame*) { return true; }
+-bool FrameView::passMouseReleaseEventToSubframe(MouseEventWithHitTestResults&, Frame*) { return true; }
+-bool FrameView::passMouseMoveEventToSubframe(MouseEventWithHitTestResults&, Frame*) { return true; }
+-bool FrameView::passWheelEventToSubframe(PlatformWheelEvent&, Frame*) { return true; }
+ 
+ void Widget::enableFlushDrawing() { notImplemented(); }
+ bool Widget::isEnabled() const { notImplemented(); return 0; }
+@@ -98,77 +95,32 @@
+ void Widget::unlockDrawingFocus(GraphicsContext*) { notImplemented(); }
+ void Widget::removeFromParent() { }
+ 
+-void TextField::selectAll() { notImplemented(); }
+-void TextField::addSearchResult() { notImplemented(); }
+-int TextField::selectionStart() const { notImplemented(); return 0; }
+-bool TextField::hasSelectedText() const { notImplemented(); return 0; }
+-String TextField::selectedText() const { notImplemented(); return String(); }
+-void TextField::setAutoSaveName(String const&) { notImplemented(); }
+-bool TextField::checksDescendantsForFocus() const { notImplemented(); return false; }
+-void TextField::setSelection(int, int) { notImplemented(); }
+-void TextField::setMaxResults(int) { notImplemented(); }
+-bool TextField::edited() const { notImplemented(); return 0; }
+-
+-Slider::Slider() { notImplemented(); }
+-IntSize Slider::sizeHint() const { notImplemented(); return IntSize(); }
+-void Slider::setValue(double) { notImplemented(); }
+-void Slider::setMaxValue(double) { notImplemented(); }
+-void Slider::setMinValue(double) { notImplemented(); }
+-Slider::~Slider() { notImplemented(); }
+-void Slider::setFont(WebCore::Font const&) { notImplemented(); }
+-double Slider::value() const { notImplemented(); return 0; }
+-
+-Widget::FocusPolicy Slider::focusPolicy() const { notImplemented(); return NoFocus; }
+-Widget::FocusPolicy TextField::focusPolicy() const { notImplemented(); return NoFocus; }
+-
+ PlatformMouseEvent::PlatformMouseEvent(const CurrentEventTag&) { notImplemented(); }
+-String WebCore::searchableIndexIntroduction() { notImplemented(); return String(); }
+ 
+ int WebCore::findNextSentenceFromIndex(UChar const*, int, int, bool) { notImplemented(); return 0; }
+ void WebCore::findSentenceBoundary(UChar const*, int, int, int*, int*) { notImplemented(); }
+ int WebCore::findNextWordFromIndex(UChar const*, int, int, bool) { notImplemented(); return 0; }
+ 
+-namespace WebCore {
+-Vector<char> ServeSynchronousRequest(Loader *loader, DocLoader *docLoader, const ResourceRequest& request, ResourceResponse& response) { notImplemented(); return Vector<char>(); }
+-}
+-
+ void FrameGdk::focusWindow() { notImplemented(); }
+ void FrameGdk::unfocusWindow() { notImplemented(); }
+-bool FrameGdk::locationbarVisible() { notImplemented(); return 0; }
+-void FrameGdk::issueRedoCommand(void) { notImplemented(); }
+ KJS::Bindings::Instance* FrameGdk::getObjectInstanceForWidget(Widget *) { notImplemented(); return 0; }
+ KJS::Bindings::Instance* FrameGdk::getEmbedInstanceForWidget(Widget *) { notImplemented(); return 0; }
+ KJS::Bindings::RootObject* FrameGdk::bindingRootObject() { notImplemented(); return 0; }
+-Widget* FrameGdk::createJavaAppletWidget(const IntSize&, Element*, const HashMap<String, String>&) { notImplemented(); return 0; }
+-bool FrameGdk::canRedo() const { notImplemented(); return 0; }
+-bool FrameGdk::canUndo() const { notImplemented(); return 0; }
+-void FrameGdk::registerCommandForRedo(PassRefPtr<WebCore::EditCommand>) { notImplemented(); }
+-bool FrameGdk::runJavaScriptPrompt(String const&, String const&, String &) { notImplemented(); return 0; }
+ bool FrameGdk::shouldInterruptJavaScript() { notImplemented(); return false; }
+ void FrameGdk::print() { notImplemented(); }
+ KJS::Bindings::Instance* FrameGdk::getAppletInstanceForWidget(Widget*) { notImplemented(); return 0; }
+-bool FrameGdk::passMouseDownEventToWidget(Widget*) { notImplemented(); return 0; }
+ void FrameGdk::issueCutCommand() { notImplemented(); }
+ void FrameGdk::issueCopyCommand() { notImplemented(); }
+-void FrameGdk::issueUndoCommand() { notImplemented(); }
+ String FrameGdk::mimeTypeForFileName(String const&) const { notImplemented(); return String(); }
+ void FrameGdk::issuePasteCommand() { notImplemented(); }
+-void FrameGdk::markMisspellings(WebCore::Selection const&) { notImplemented(); }
+-bool FrameGdk::menubarVisible() { notImplemented(); return 0; }
+-bool FrameGdk::personalbarVisible() { notImplemented(); return 0; }
+-bool FrameGdk::statusbarVisible() { notImplemented(); return 0; }
+-bool FrameGdk::toolbarVisible() { notImplemented(); return 0; }
+ void FrameGdk::issueTransposeCommand() { notImplemented(); }
+-bool FrameGdk::canPaste() const { notImplemented(); return 0; }
+-bool FrameGdk::canGoBackOrForward(int) const { notImplemented(); return 0; }
+ void FrameGdk::issuePasteAndMatchStyleCommand() { notImplemented(); }
+-bool FrameGdk::isLoadTypeReload() { notImplemented(); return false; }
+-KURL FrameGdk::originalRequestURL() const { return KURL(); }
++Range* FrameGdk::markedTextRange() const { return 0; }
++bool FrameGdk::shouldChangeSelection(const Selection&, const Selection&, WebCore::EAffinity, bool) const { return true; }
++bool FrameGdk::shouldChangeSelection(const Selection&) const { return true; }
++void FrameGdk::respondToChangedSelection(WebCore::Selection const&, bool) { }
+ 
+-void FrameGdk::goBackOrForward(int distance) { notImplemented(); }
+-int FrameGdk::getHistoryLength() {notImplemented(); return 0; }
+-KURL FrameGdk::historyURL(int distance) { notImplemented(); return KURL(); }
+-
++void ChromeClientGdk::chromeDestroyed() { notImplemented(); }
+ FloatRect ChromeClientGdk::windowRect() { notImplemented(); return FloatRect(); }
+ void ChromeClientGdk::setWindowRect(const FloatRect& r) {notImplemented(); }
+ FloatRect ChromeClientGdk::pageRect() { notImplemented(); return FloatRect(); }
+@@ -189,6 +141,30 @@
+ void ChromeClientGdk::setMenubarVisible(bool) { notImplemented(); }
+ bool ChromeClientGdk::menubarVisible() { notImplemented(); return false; }
+ void ChromeClientGdk::setResizable(bool) { notImplemented(); }
++void ChromeClientGdk::closeWindowSoon() { notImplemented(); }
++bool ChromeClientGdk::canTakeFocus(FocusDirection) { notImplemented(); return true; }
++void ChromeClientGdk::takeFocus(FocusDirection) { notImplemented(); }
++bool ChromeClientGdk::canRunBeforeUnloadConfirmPanel() { notImplemented(); return false; }
++void ChromeClientGdk::addMessageToConsole(const WebCore::String&, unsigned int, const WebCore::String&) { notImplemented(); }
++bool ChromeClientGdk::runBeforeUnloadConfirmPanel(const WebCore::String&, WebCore::Frame*) { notImplemented(); return false; }
++void ChromeClientGdk::runJavaScriptAlert(Frame*, const String&)
++{
++    notImplemented();
++}
++bool ChromeClientGdk::runJavaScriptConfirm(Frame*, const String&)
++{
++    notImplemented();
++    return false;
++}
++bool ChromeClientGdk::runJavaScriptPrompt(Frame*, const String& message, const String& defaultValue, String& result)
++{
++    notImplemented();
++    return false;
++}
++void ChromeClientGdk::setStatusbarText(const String&)
++{
++    notImplemented();
++}
+ 
+ /********************************************************/
+ /* Completely empty stubs (mostly to allow DRT to run): */
+@@ -196,14 +172,57 @@
+ bool AXObjectCache::gAccessibilityEnabled = false;
+ 
+ bool WebCore::historyContains(DeprecatedString const&) { return false; }
++
++// LocalizedStrings
+ String WebCore::submitButtonDefaultLabel() { return "Submit"; }
+-String WebCore::inputElementAltText() { return DeprecatedString(); }
++String WebCore::inputElementAltText() { return String(); }
+ String WebCore::resetButtonDefaultLabel() { return "Reset"; }
+-String WebCore::fileButtonChooseFileLabel() { return "Browse..."; }
+-String WebCore::fileButtonNoFileSelectedLabel() { return String(); }
+-
+ String WebCore::defaultLanguage() { return "en"; }
++String WebCore::searchableIndexIntroduction() { return "Searchable Index"; }
++String WebCore::fileButtonChooseFileLabel() { return "Choose File"; }
++String WebCore::fileButtonNoFileSelectedLabel() { return "No file selected"; }
++String WebCore::contextMenuItemTagOpenLinkInNewWindow() { return String(); }
++String WebCore::contextMenuItemTagDownloadLinkToDisk() { return String(); }
++String WebCore::contextMenuItemTagCopyLinkToClipboard() { return String(); }
++String WebCore::contextMenuItemTagOpenImageInNewWindow() { return String(); }
++String WebCore::contextMenuItemTagDownloadImageToDisk() { return String(); }
++String WebCore::contextMenuItemTagCopyImageToClipboard() { return String(); }
++String WebCore::contextMenuItemTagOpenFrameInNewWindow() { return String(); }
++String WebCore::contextMenuItemTagCopy() { return String(); }
++String WebCore::contextMenuItemTagGoBack() { return String(); }
++String WebCore::contextMenuItemTagGoForward() { return String(); }
++String WebCore::contextMenuItemTagStop() { return String(); }
++String WebCore::contextMenuItemTagReload() { return String(); }
++String WebCore::contextMenuItemTagCut() { return String(); }
++String WebCore::contextMenuItemTagPaste() { return String(); }
++String WebCore::contextMenuItemTagNoGuessesFound() { return String(); }
++String WebCore::contextMenuItemTagIgnoreSpelling() { return String(); }
++String WebCore::contextMenuItemTagLearnSpelling() { return String(); }
++String WebCore::contextMenuItemTagSearchWeb() { return String(); }
++String WebCore::contextMenuItemTagLookUpInDictionary() { return String(); }
++String WebCore::contextMenuItemTagOpenLink() { return String(); }
++String WebCore::contextMenuItemTagIgnoreGrammar() { return String(); }
++String WebCore::contextMenuItemTagSpellingMenu() { return String(); }
++String WebCore::contextMenuItemTagShowSpellingPanel(bool show) { return String(); }
++String WebCore::contextMenuItemTagCheckSpelling() { return String(); }
++String WebCore::contextMenuItemTagCheckSpellingWhileTyping() { return String(); }
++String WebCore::contextMenuItemTagCheckGrammarWithSpelling() { return String(); }
++String WebCore::contextMenuItemTagFontMenu() { return String(); }
++String WebCore::contextMenuItemTagBold() { return String(); }
++String WebCore::contextMenuItemTagItalic() { return String(); }
++String WebCore::contextMenuItemTagUnderline() { return String(); }
++String WebCore::contextMenuItemTagOutline() { return String(); }
++String WebCore::contextMenuItemTagWritingDirectionMenu() { return String(); }
++String WebCore::contextMenuItemTagDefaultDirection() { return String(); }
++String WebCore::contextMenuItemTagLeftToRight() { return String(); }
++String WebCore::contextMenuItemTagRightToLeft() { return String(); }
+ 
++int WebCore::screenDepth(Widget*) { notImplemented(); return 0; }
++int WebCore::screenDepthPerComponent(Widget*) { notImplemented(); return 0; }
++bool WebCore::screenIsMonochrome(Widget*) { notImplemented(); return false; }
++FloatRect WebCore::screenRect(Widget*) { notImplemented(); return FloatRect(); }
++FloatRect WebCore::screenAvailableRect(Widget*) { notImplemented(); return FloatRect(); }
++
+ void WebCore::findWordBoundary(UChar const* str, int len, int position, int* start, int* end) {*start = position; *end = position; }
+ 
+ PluginInfo*PlugInInfoStore::createPluginInfoForPluginAtIndex(unsigned) { return 0;}
+@@ -211,42 +230,10 @@
+ bool WebCore::PlugInInfoStore::supportsMIMEType(const WebCore::String&) { return false; }
+ void WebCore::refreshPlugins(bool) { }
+ 
+-void FrameGdk::restoreDocumentState() { }
+-void FrameGdk::partClearedInBegin() { }
+-void FrameGdk::createEmptyDocument() { }
+-String FrameGdk::overrideMediaType() const { return String(); }
+-void FrameGdk::handledOnloadEvents() { }
+-Range* FrameGdk::markedTextRange() const { return 0; }
+-bool FrameGdk::lastEventIsMouseUp() const { return false; }
+-void FrameGdk::addMessageToConsole(String const&, unsigned int, String const&) { }
+-bool FrameGdk::shouldChangeSelection(const Selection&, const Selection&, WebCore::EAffinity, bool) const { return true; }
+-bool FrameGdk::shouldChangeSelection(const Selection&) const { return true; }
+-void FrameGdk::respondToChangedSelection(WebCore::Selection const&, bool) { }
+-Frame* FrameGdk::createFrame(const KURL& url, const String& name, Element* ownerElement, const String& referrer) { return 0; }
++void SearchPopupMenu::saveRecentSearches(const AtomicString& name, const Vector<String>& searchItems) { notImplemented(); }
++void SearchPopupMenu::loadRecentSearches(const AtomicString& name, Vector<String>& searchItems) { notImplemented(); }
++SearchPopupMenu::SearchPopupMenu(PopupMenuClient* client) : PopupMenu(client) { notImplemented(); }
+ 
+-void FrameGdk::saveDocumentState() { }
+-void FrameGdk::registerCommandForUndo(PassRefPtr<WebCore::EditCommand>) { }
+-void FrameGdk::clearUndoRedoOperations(void) { }
+-String FrameGdk::incomingReferrer() const { return String(); }
+-void FrameGdk::markMisspellingsInAdjacentWords(WebCore::VisiblePosition const&) { }
+-void FrameGdk::respondToChangedContents(const Selection&) { }
+-
+-namespace WebCore {
+-
+-void systemBeep() { notImplemented(); }
+-
+-bool CheckIfReloading(DocLoader*) { return false; }
+-time_t CacheObjectExpiresTime(DocLoader*, PlatformResponse) { return 0; }
+-void CheckCacheObjectStatus(DocLoader*, CachedResource*) { }
+-DeprecatedString ResponseURL(PlatformResponse) { return DeprecatedString(); }
+-bool IsResponseURLEqualToURL(PlatformResponse , const String& URL) { return false; }
+-bool ResponseIsMultipart(PlatformResponse) { return false; }
+-DeprecatedString ResponseMIMEType(PlatformResponse) { return DeprecatedString(); }
+-void CachedResource::setPlatformResponse(PlatformResponse) { notImplemented(); }
+-void CachedResource::setAllData(PlatformData) { notImplemented(); }
+-
+-}
+-
+ void Widget::setEnabled(bool) { }
+ void Widget::paint(GraphicsContext*, IntRect const&) { }
+ void Widget::setIsSelected(bool) { }
+@@ -264,25 +251,6 @@
+ IntPoint ScrollView::contentsToWindow(const IntPoint& point) const { return point; }
+ PlatformScrollbar* ScrollView::scrollbarUnderMouse(const PlatformMouseEvent& mouseEvent) { return 0; }
+ 
+-void GraphicsContext::addRoundedRectClip(const IntRect& rect, const IntSize& topLeft, const IntSize& topRight,
+-        const IntSize& bottomLeft, const IntSize& bottomRight) { notImplemented(); }
+-void GraphicsContext::addInnerRoundedRectClip(const IntRect& rect, int thickness) { notImplemented(); }
+-void GraphicsContext::setShadow(IntSize const&, int, Color const&) { }
+-void GraphicsContext::clearShadow() { }
+-void GraphicsContext::beginTransparencyLayer(float) { }
+-void GraphicsContext::endTransparencyLayer() { }
+-void GraphicsContext::clearRect(const FloatRect&) { }
+-void GraphicsContext::strokeRect(const FloatRect&, float) { }
+-void GraphicsContext::setLineWidth(float) { }
+-void GraphicsContext::setLineCap(LineCap) { }
+-void GraphicsContext::setLineJoin(LineJoin) { }
+-void GraphicsContext::setMiterLimit(float) { }
+-void GraphicsContext::setAlpha(float) { }
+-void GraphicsContext::setCompositeOperation(CompositeOperator) { }
+-void GraphicsContext::clip(const Path&) { }
+-void GraphicsContext::rotate(float) { }
+-void GraphicsContext::scale(const FloatSize&) { }
+-
+ Path::Path(){ }
+ Path::~Path(){ }
+ Path::Path(const Path&){ }
+@@ -301,26 +269,8 @@
+ void Path::addRect(const FloatRect&) { }
+ void Path::addEllipse(const FloatRect&) { }
+ void Path::transform(const AffineTransform& transform) {}
++void Path::apply(void* info, PathApplierFunction) const {}
+ 
+-TextField::TextField() { }
+-TextField::~TextField() { }
+-void TextField::setFont(WebCore::Font const&) { }
+-void TextField::setAlignment(HorizontalAlignment) { }
+-void TextField::setWritingDirection(TextDirection) { }
+-int TextField::maxLength() const { return 0; }
+-void TextField::setMaxLength(int) { }
+-String TextField::text() const { return String(); }
+-void TextField::setText(String const&) { }
+-int TextField::cursorPosition() const { return 0; }
+-void TextField::setCursorPosition(int) { }
+-void TextField::setEdited(bool) { }
+-void TextField::setReadOnly(bool) { }
+-void TextField::setPlaceholderString(String const&) { }
+-void TextField::setColors(Color const&, Color const&) { }
+-IntSize TextField::sizeForCharacterWidth(int) const { return IntSize(); }
+-int TextField::baselinePosition(int) const { return 0; }
+-void TextField::setLiveSearch(bool) { }
+-
+ PlatformScrollbar::PlatformScrollbar(ScrollbarClient* client, ScrollbarOrientation orientation, ScrollbarControlSize controlSize) : Scrollbar(client, orientation, controlSize) { }
+ PlatformScrollbar::~PlatformScrollbar() { }
+ int PlatformScrollbar::width() const { return 0; }
+@@ -344,16 +294,11 @@
+ 
+ void Frame::setNeedsReapplyStyles() { }
+ 
+-void Image::drawTiled(GraphicsContext*, const FloatRect&, const FloatRect&, TileRule, TileRule, CompositeOperator) { }
++bool ResourceHandle::willLoadFromCache(ResourceRequest&) { notImplemented(); return false; }
++bool ResourceHandle::loadsBlocked() { notImplemented(); return false; }
++void ResourceHandle::loadResourceSynchronously(const ResourceRequest& request, ResourceError& error, ResourceResponse& response, Vector<char>& data) { notImplemented(); }
++void ResourceHandle::setDefersLoading(bool) { notImplemented(); }
+ 
+-void RenderThemeGdk::setCheckboxSize(RenderStyle*) const { }
+-bool RenderThemeGdk::paintButton(RenderObject*, const RenderObject::PaintInfo&, const IntRect&) { return false; }
+-void RenderThemeGdk::setRadioSize(RenderStyle*) const { }
+-void RenderThemeGdk::adjustTextFieldStyle(CSSStyleSelector*, RenderStyle*, Element* e) const {}
+-bool RenderThemeGdk::paintTextField(RenderObject*, const RenderObject::PaintInfo&, const IntRect&) { return false; }
+-
+-bool ResourceLoader::loadsBlocked() { notImplemented(); return false; }
+-
+ Icon::Icon() { notImplemented(); }
+ Icon::~Icon() { notImplemented(); }
+ PassRefPtr<Icon> Icon::newIconForFile(const String& filename) { notImplemented(); return PassRefPtr<Icon>(new Icon()); }
+@@ -364,8 +309,133 @@
+ float Font::floatWidthForComplexText(const TextRun&, const TextStyle&) const { notImplemented(); return 0; }
+ int Font::offsetForPositionForComplexText(const TextRun&, const TextStyle&, int, bool) const { notImplemented(); return 0; }
+ 
++bool FrameLoaderClientGdk::hasWebView() const { notImplemented(); return true; }
++bool FrameLoaderClientGdk::hasFrameView() const { notImplemented(); return true; }
++bool FrameLoaderClientGdk::privateBrowsingEnabled() const { notImplemented(); return false; }
++void FrameLoaderClientGdk::makeDocumentView() { notImplemented(); }
++void FrameLoaderClientGdk::makeRepresentation(DocumentLoader*) { notImplemented(); }
++void FrameLoaderClientGdk::forceLayout() { notImplemented(); }
++void FrameLoaderClientGdk::forceLayoutForNonHTML() { notImplemented(); }
++void FrameLoaderClientGdk::setCopiesOnScroll() { notImplemented(); }
++void FrameLoaderClientGdk::detachedFromParent1() { notImplemented(); }
++void FrameLoaderClientGdk::detachedFromParent2() { notImplemented(); }
++void FrameLoaderClientGdk::detachedFromParent3() { notImplemented(); }
++void FrameLoaderClientGdk::detachedFromParent4() { notImplemented(); }
++void FrameLoaderClientGdk::loadedFromPageCache() { notImplemented(); }
++void FrameLoaderClientGdk::dispatchDidHandleOnloadEvents() {notImplemented(); }
++void FrameLoaderClientGdk::dispatchDidReceiveServerRedirectForProvisionalLoad() { notImplemented(); }
++void FrameLoaderClientGdk::dispatchDidCancelClientRedirect() { notImplemented(); }
++void FrameLoaderClientGdk::dispatchWillPerformClientRedirect(const KURL&, double, double) { notImplemented(); }
++void FrameLoaderClientGdk::dispatchDidChangeLocationWithinPage() { notImplemented(); }
++void FrameLoaderClientGdk::dispatchWillClose() { notImplemented(); }
++void FrameLoaderClientGdk::dispatchDidReceiveIcon() { notImplemented(); }
++void FrameLoaderClientGdk::dispatchDidStartProvisionalLoad() { notImplemented(); }
++void FrameLoaderClientGdk::dispatchDidReceiveTitle(const String&) { notImplemented(); }
++void FrameLoaderClientGdk::dispatchDidCommitLoad() { notImplemented(); }
++void FrameLoaderClientGdk::dispatchDidFinishDocumentLoad() { notImplemented(); }
++void FrameLoaderClientGdk::dispatchDidFinishLoad() { notImplemented(); }
++void FrameLoaderClientGdk::dispatchDidFirstLayout() { notImplemented(); }
++void FrameLoaderClientGdk::dispatchShow() { notImplemented(); }
++void FrameLoaderClientGdk::cancelPolicyCheck() { notImplemented(); }
++void FrameLoaderClientGdk::dispatchDidLoadMainResource(DocumentLoader*) { notImplemented(); }
++void FrameLoaderClientGdk::revertToProvisionalState(DocumentLoader*) { notImplemented(); }
++void FrameLoaderClientGdk::clearUnarchivingState(DocumentLoader*) { notImplemented(); }
++void FrameLoaderClientGdk::setMainFrameDocumentReady(bool) { notImplemented(); }
++void FrameLoaderClientGdk::willChangeTitle(DocumentLoader*) { notImplemented(); }
++void FrameLoaderClientGdk::didChangeTitle(DocumentLoader *l) { setTitle(l->title(), l->URL()); }
++void FrameLoaderClientGdk::finishedLoading(DocumentLoader*) { notImplemented(); }
++void FrameLoaderClientGdk::finalSetupForReplace(DocumentLoader*) { notImplemented(); }
++void FrameLoaderClientGdk::setDefersLoading(bool) { notImplemented(); }
++bool FrameLoaderClientGdk::isArchiveLoadPending(ResourceLoader*) const { notImplemented(); return false; }
++void FrameLoaderClientGdk::cancelPendingArchiveLoad(ResourceLoader*) { notImplemented(); }
++void FrameLoaderClientGdk::clearArchivedResources() { notImplemented(); }
++bool FrameLoaderClientGdk::canHandleRequest(const ResourceRequest&) const { notImplemented(); return false; }
++bool FrameLoaderClientGdk::canShowMIMEType(const String&) const { notImplemented(); return false; }
++bool FrameLoaderClientGdk::representationExistsForURLScheme(const String&) const { notImplemented(); return false; }
++String FrameLoaderClientGdk::generatedMIMETypeForURLScheme(const String&) const { notImplemented(); return String(); }
++void FrameLoaderClientGdk::frameLoadCompleted() { notImplemented(); }
++void FrameLoaderClientGdk::restoreScrollPositionAndViewState() { notImplemented(); }
++void FrameLoaderClientGdk::provisionalLoadStarted() { notImplemented(); }
++void FrameLoaderClientGdk::didFinishLoad() { notImplemented(); }
++void FrameLoaderClientGdk::prepareForDataSourceReplacement() { notImplemented(); }
++void FrameLoaderClientGdk::setTitle(const String&, const KURL&) { notImplemented(); }
++void FrameLoaderClientGdk::setDocumentViewFromPageCache(WebCore::PageCache*) { notImplemented(); }
++void FrameLoaderClientGdk::dispatchDidReceiveContentLength(DocumentLoader*, unsigned long  identifier, int lengthReceived) { notImplemented(); }
++void FrameLoaderClientGdk::dispatchDidFinishLoading(DocumentLoader*, unsigned long  identifier) { notImplemented(); }
++void FrameLoaderClientGdk::dispatchDidFailLoading(DocumentLoader*, unsigned long  identifier, const ResourceError&) { notImplemented(); }
++bool FrameLoaderClientGdk::dispatchDidLoadResourceFromMemoryCache(DocumentLoader*, const ResourceRequest&, const ResourceResponse&, int length) { notImplemented(); return false; }
++void FrameLoaderClientGdk::dispatchDidFailProvisionalLoad(const ResourceError&) { notImplemented(); }
++void FrameLoaderClientGdk::dispatchDidFailLoad(const ResourceError&) { notImplemented(); }
++void FrameLoaderClientGdk::download(ResourceHandle*, const ResourceRequest&, const ResourceResponse&) { notImplemented(); }
++ResourceError FrameLoaderClientGdk::cancelledError(const ResourceRequest&) { notImplemented(); return ResourceError(); }
++ResourceError FrameLoaderClientGdk::cannotShowURLError(const ResourceRequest&) { notImplemented(); return ResourceError(); }
++ResourceError FrameLoaderClientGdk::interruptForPolicyChangeError(const ResourceRequest&) { notImplemented(); return ResourceError(); }
++ResourceError FrameLoaderClientGdk::cannotShowMIMETypeError(const ResourceResponse&) { notImplemented(); return ResourceError(); }
++ResourceError FrameLoaderClientGdk::fileDoesNotExistError(const ResourceResponse&) { notImplemented(); return ResourceError(); }
++bool FrameLoaderClientGdk::shouldFallBack(const ResourceError&) { notImplemented(); return false; }
++bool FrameLoaderClientGdk::willUseArchive(ResourceLoader*, const ResourceRequest&, const KURL& originalURL) const { notImplemented(); return false; }
++void FrameLoaderClientGdk::saveScrollPositionAndViewStateToItem(HistoryItem*) { notImplemented(); }
++void FrameLoaderClientGdk::saveDocumentViewToPageCache(PageCache*) { notImplemented(); }
++bool FrameLoaderClientGdk::canCachePage() const { notImplemented(); return false; }
++Frame* FrameLoaderClientGdk::dispatchCreatePage() { notImplemented(); return 0; }
++void FrameLoaderClientGdk::dispatchUnableToImplementPolicy(const ResourceError&) { notImplemented(); }
++void FrameLoaderClientGdk::setMainDocumentError(DocumentLoader*, const ResourceError&) { notImplemented(); }
++void FrameLoaderClientGdk::startDownload(const ResourceRequest&) { notImplemented(); }
++void FrameLoaderClientGdk::updateGlobalHistoryForStandardLoad(const KURL&) { notImplemented(); }
++void FrameLoaderClientGdk::updateGlobalHistoryForReload(const KURL&) { notImplemented(); }
++bool FrameLoaderClientGdk::shouldGoToHistoryItem(HistoryItem*) const { notImplemented(); return false;}
++
++void PageCache::close() { notImplemented(); }
++
++void Editor::ignoreSpelling() { notImplemented(); }
++void Editor::learnSpelling() { notImplemented(); }
++bool Editor::isSelectionUngrammatical() { notImplemented(); return false; }
++bool Editor::isSelectionMisspelled() { notImplemented(); return false; }
++Vector<String> Editor::guessesForMisspelledSelection() { notImplemented(); return Vector<String>(); }
++Vector<String> Editor::guessesForUngrammaticalSelection() { notImplemented(); return Vector<String>(); }
++void Editor::markMisspellingsAfterTypingToPosition(const VisiblePosition&) { notImplemented(); }
++PassRefPtr<Clipboard> Editor::newGeneralClipboard(ClipboardAccessPolicy policy) { notImplemented(); return 0; }
++
++Pasteboard* Pasteboard::generalPasteboard() { notImplemented(); return 0; }
++void Pasteboard::writeSelection(Range*, bool canSmartCopyOrDelete, Frame*) { notImplemented(); }
++void Pasteboard::writeURL(const KURL&, const String&, Frame*) { notImplemented(); }
++void Pasteboard::clear() { notImplemented(); }
++bool Pasteboard::canSmartReplace() { notImplemented(); return false; }
++PassRefPtr<DocumentFragment> Pasteboard::documentFragment(Frame*, PassRefPtr<Range>, bool allowPlainText, bool& chosePlainText) { notImplemented(); return 0; }
++String Pasteboard::plainText(Frame* frame) { notImplemented(); return String(); }
++Pasteboard::Pasteboard() { notImplemented(); }
++Pasteboard::~Pasteboard() { notImplemented(); }
++
++ContextMenu::ContextMenu(const HitTestResult& result) : m_hitTestResult(result) { notImplemented(); }
++ContextMenu::~ContextMenu() { notImplemented(); }
++void ContextMenu::appendItem(ContextMenuItem&) { notImplemented(); }
++
++void ContextMenu::setPlatformDescription(PlatformMenuDescription menu) { m_platformDescription = menu; }
++PlatformMenuDescription ContextMenu::platformDescription() const  { return m_platformDescription; }
++
++ContextMenuItem::ContextMenuItem(PlatformMenuItemDescription) { notImplemented(); }
++ContextMenuItem::ContextMenuItem(ContextMenu*) { notImplemented(); }
++ContextMenuItem::ContextMenuItem(ContextMenuItemType type, ContextMenuAction action, const String& title, ContextMenu* subMenu) { notImplemented(); }
++ContextMenuItem::~ContextMenuItem() { notImplemented(); }
++PlatformMenuItemDescription ContextMenuItem::releasePlatformDescription() { notImplemented(); return m_platformDescription; }
++ContextMenuItemType ContextMenuItem::type() const { notImplemented(); return ActionType; }
++void ContextMenuItem::setType(ContextMenuItemType) { notImplemented(); }
++ContextMenuAction ContextMenuItem::action() const { notImplemented(); return ContextMenuItemTagNoAction; }
++void ContextMenuItem::setAction(ContextMenuAction) { notImplemented(); }
++String ContextMenuItem::title() const { notImplemented(); return String(); }
++void ContextMenuItem::setTitle(const String&) { notImplemented(); }
++PlatformMenuDescription ContextMenuItem::platformSubMenu() const { notImplemented(); return 0; }
++void ContextMenuItem::setSubMenu(ContextMenu*) { notImplemented(); }
++void ContextMenuItem::setChecked(bool) { notImplemented(); }
++void ContextMenuItem::setEnabled(bool) { notImplemented(); }
++
+ namespace WebCore {
+ Vector<String> supportedKeySizes() { notImplemented(); return Vector<String>(); }
+ String signedPublicKeyAndChallengeString(unsigned keySizeIndex, const String &challengeString, const KURL &url) { return String(); }
++    void systemBeep() { notImplemented(); }
++float userIdleTime() { notImplemented(); return 0.0; }
++Vector<char> ServeSynchronousRequest(Loader *loader, DocLoader *docLoader, const ResourceRequest& request, ResourceResponse& response) { notImplemented(); return Vector<char>(); }
++bool CheckIfReloading(DocLoader*) { return false; }
++void CheckCacheObjectStatus(DocLoader*, CachedResource*) { }
++}
+ 
+-}
+Index: WebCore/platform/gdk/FrameGdk.h
+===================================================================
+--- WebCore/platform/gdk/FrameGdk.h	(revision 19028)
++++ WebCore/platform/gdk/FrameGdk.h	(working copy)
+@@ -28,153 +28,79 @@
+ #ifndef FrameGdk_h
+ #define FrameGdk_h
+ 
+-#include "Frame.h"
+ #include "EditorClient.h"
+-#include "ResourceHandleClient.h"
++#include "Frame.h"
+ #include <gdk/gdk.h>
++#include "ResourceHandleClient.h"
+ 
+ namespace WebCore {
+ 
+ class Element;
+ class FrameGdk;
++class FrameLoaderClientGdk;
+ class FormData;
+ 
+-class FrameGdkClient {
++class FrameGdkClient : ResourceHandleClient {
+ public:
+-    virtual ~FrameGdkClient() {};
++    FrameGdkClient();
++    virtual ~FrameGdkClient();
+ 
+-    virtual void setFrame(const FrameGdk*) = 0;
++    // local
++    void openURL(const KURL&);
++    void submitForm(const String& method, const KURL&, PassRefPtr<FormData>);
+ 
+-    virtual void openURL(const KURL&) = 0;
+-    virtual void submitForm(const String& method, const KURL&, const FormData*) = 0;
+-};
+-
+-class FrameGdkClientDefault : public FrameGdkClient,
+-                              public  ResourceHandleClient 
+-{
+-public:
+-
+-    FrameGdkClientDefault();
+-    virtual ~FrameGdkClientDefault();
+-
+     // FrameGdkClient
+     virtual void setFrame(const FrameGdk*);
+-    virtual void openURL(const KURL&);
+-    virtual void submitForm(const String& method, const KURL&, const FormData*);
+ 
+     // ResourceHandleClient
+-    virtual void receivedResponse(ResourceHandle*, PlatformResponse);
+-    virtual void didReceiveData(ResourceHandle*, const char*, int);
+-    virtual void receivedAllData(ResourceHandle*, PlatformData);
+-
++    virtual void didReceiveResponse(ResourceHandle*, const ResourceResponse&);
++    virtual void didReceiveData(ResourceHandle*, const char*, int, int);
++    virtual void didFinishLoading(ResourceHandle*);
++    virtual void didFail(ResourceHandle*, const ResourceError&);
+ private:
+     FrameGdk* m_frame;
+-    bool m_beginCalled : 1;
+-
+ };
+ 
+ class FrameGdk : public Frame {
+ public:
+-    FrameGdk(Page*, Element*, PassRefPtr<EditorClient>);
+-    FrameGdk(GdkDrawable*);
++    FrameGdk(Page*, HTMLFrameOwnerElement*, FrameGdkClient*, FrameLoaderClientGdk*);
+     virtual ~FrameGdk();
+ 
+-    void handleGdkEvent(GdkEvent*);
+-    virtual void submitForm(const FrameLoadRequest&, Event*);
+-    virtual void urlSelected(const FrameLoadRequest&, Event*);
+-
+-    virtual void setTitle(const String&);
+-
++    // from Frame
+     virtual void unfocusWindow();
+-
+     virtual void focusWindow();
+ 
+-    virtual void saveDocumentState();
+-    virtual void restoreDocumentState();
+-
+-    virtual void addMessageToConsole(const String& message, unsigned lineNumber, const String& sourceID);
+-
+-    virtual void runJavaScriptAlert(const String& message);
+-    virtual bool runJavaScriptConfirm(const String& message);
+-    virtual bool runJavaScriptPrompt(const String& message, const String& defaultValue, String& result);
+-    virtual bool locationbarVisible();
+-    virtual bool menubarVisible();
+-    virtual bool personalbarVisible();
+-    virtual bool statusbarVisible();
+-    virtual bool toolbarVisible();
+-
+-    virtual void createEmptyDocument();
+     virtual Range* markedTextRange() const;
+ 
+-    virtual String incomingReferrer() const;
+-    virtual String userAgent() const;
+-
+     virtual String mimeTypeForFileName(const String&) const;
+ 
+-    virtual void markMisspellingsInAdjacentWords(const VisiblePosition&);
+-    virtual void markMisspellings(const Selection&);
+-
+-    virtual bool lastEventIsMouseUp() const;
+-
+-    virtual bool passSubframeEventToSubframe(MouseEventWithHitTestResults &, Frame* subframe = 0);
+-    virtual bool passWheelEventToChildWidget(Node*);
+-
+-    virtual String overrideMediaType() const;
+-
+     virtual KJS::Bindings::Instance* getEmbedInstanceForWidget(Widget*);
+     virtual KJS::Bindings::Instance* getObjectInstanceForWidget(Widget*);
+     virtual KJS::Bindings::Instance* getAppletInstanceForWidget(Widget*);
+     virtual KJS::Bindings::RootObject* bindingRootObject();
+ 
+-    virtual void registerCommandForUndo(PassRefPtr<EditCommand>);
+-    virtual void registerCommandForRedo(PassRefPtr<EditCommand>);
+-    virtual void clearUndoRedoOperations();
+-    virtual void issueUndoCommand();
+-    virtual void issueRedoCommand();
+     virtual void issueCutCommand();
+     virtual void issueCopyCommand();
+     virtual void issuePasteCommand();
+     virtual void issuePasteAndMatchStyleCommand();
+     virtual void issueTransposeCommand();
+     virtual void respondToChangedSelection(const Selection& oldSelection, bool closeTyping);
+-    virtual void respondToChangedContents(const Selection& endingSelection);
+     virtual bool shouldChangeSelection(const Selection& oldSelection, const Selection& newSelection, EAffinity affinity, bool stillSelecting) const;
+     bool shouldChangeSelection(const Selection&) const;
+-    virtual void partClearedInBegin();
+ 
+-    virtual bool canGoBackOrForward(int distance) const;
+-    virtual void goBackOrForward(int distance);
+-    virtual int getHistoryLength();
+-    virtual KURL historyURL(int distance);
+-
+-    virtual void handledOnloadEvents();
+-
+-    virtual bool canPaste() const;
+-    virtual bool canRedo() const;
+-    virtual bool canUndo() const;
+     virtual void print();
+     virtual bool shouldInterruptJavaScript();
+ 
+-    bool keyPress(const PlatformKeyboardEvent&);
+-    virtual KURL originalRequestURL() const;
+-
+-    IntRect frameGeometry() const;
+-    void setFrameGeometry(const IntRect&);
+-    virtual Frame* createFrame(const KURL&, const String& name, Element* ownerElement, const String& referrer);
+-    Widget* createJavaAppletWidget(const IntSize&, Element*, const HashMap<String, String>&);
+-
++    // FrameGdk-only
++    void handleGdkEvent(GdkEvent*);
+     FrameGdkClient* client() const { return m_client; }
+ 
+ private:
+-    virtual bool isLoadTypeReload();
+-    virtual bool passMouseDownEventToWidget(Widget*);
+-
+     FrameGdkClient* m_client;
+-    GdkDrawable* m_drawable;
+ };
+ 
+-inline FrameGdk* Win(Frame* frame) { return static_cast<FrameGdk*>(frame); }
+-inline const FrameGdk* Win(const Frame* frame) { return static_cast<const FrameGdk*>(frame); }
++inline FrameGdk* GdkFrame(Frame* frame) { return static_cast<FrameGdk*>(frame); }
++inline const FrameGdk* GdkFrame(const Frame* frame) { return static_cast<const FrameGdk*>(frame); }
+ 
+ }
+ 
+Index: WebCore/platform/gdk/FontDataGdk.cpp
+===================================================================
+--- WebCore/platform/gdk/FontDataGdk.cpp	(revision 19028)
++++ WebCore/platform/gdk/FontDataGdk.cpp	(working copy)
+@@ -43,8 +43,6 @@
+ 
+ namespace WebCore {
+ 
+-#define USE_OLD_CAIRO 1
+-
+ void FontData::platformInit()
+ {
+     cairo_font_extents_t font_extents;
+@@ -53,15 +51,10 @@
+     m_ascent = static_cast<int>(font_extents.ascent);
+     m_descent = static_cast<int>(font_extents.descent);
+     m_lineSpacing = static_cast<int>(font_extents.height);
+-#ifdef USE_OLD_CAIRO
+-    m_xHeight = 13;
+-    m_spaceWidth = 10;
+-#else
+     cairo_scaled_font_text_extents(m_font.m_scaledFont, "x", &text_extents);
+     m_xHeight = text_extents.height;
+     cairo_scaled_font_text_extents(m_font.m_scaledFont, " ", &text_extents);
+     m_spaceWidth =  static_cast<int>(text_extents.x_advance);
+-#endif
+     assert(m_spaceWidth != 0);
+     m_lineGap = m_lineSpacing - m_ascent - m_descent;
+ }
+Index: WebCore/platform/gdk/RenderThemeGdk.cpp
+===================================================================
+--- WebCore/platform/gdk/RenderThemeGdk.cpp	(revision 19028)
++++ WebCore/platform/gdk/RenderThemeGdk.cpp	(working copy)
+@@ -24,12 +24,15 @@
+ 
+ #include "config.h"
+ #include "RenderThemeGdk.h"
+-#include "RenderPopupMenuGdk.h"
+-#include "Document.h"
+ 
++//#include <cairo.h>
++//#include "Document.h"
+ #include "GraphicsContext.h"
+-#include <cairo.h>
++#include "RenderObject.h"
++//#include "RenderPopupMenuGdk.h"
+ 
++#define notImplemented() do { fprintf(stderr, "%s FIXME: UNIMPLEMENTED %s:%d\n", __PRETTY_FUNCTION__, __FILE__, __LINE__); } while(0)
++
+ #define THEME_COLOR 204
+ #define THEME_FONT  210
+ 
+@@ -139,11 +142,58 @@
+             result.m_part = TFP_TEXTFIELD;
+             result.m_state = determineState(o);
+             break;
++        default:
++            // FIXME: much more?
++            break;
+     }
+ 
+     return result;
+ }
+ 
++void RenderThemeGdk::setCheckboxSize(RenderStyle*) const 
++{ 
++    notImplemented(); 
++}
++
++bool RenderThemeGdk::paintCheckbox(RenderObject* o, const RenderObject::PaintInfo& i, const IntRect& r)
++{
++    // FIXME: is it the right thing to do?
++    return paintButton(o, i, r); 
++}
++
++void RenderThemeGdk::setRadioSize(RenderStyle*) const 
++{ 
++    notImplemented(); 
++}
++
++bool RenderThemeGdk::paintRadio(RenderObject* o, const RenderObject::PaintInfo& i, const IntRect& r)
++{ 
++    // FIXME: is it the right thing to do?
++    return paintButton(o, i, r); 
++}
++
++bool RenderThemeGdk::paintButton(RenderObject*, const RenderObject::PaintInfo&, const IntRect&) 
++{ 
++    // FIXME: should use theme-aware drawing
++    return true;
++}
++
++void RenderThemeGdk::adjustTextFieldStyle(CSSStyleSelector*, RenderStyle*, Element* e) const 
++{ 
++    notImplemented(); 
++}
++
++bool RenderThemeGdk::paintTextField(RenderObject* o, const RenderObject::PaintInfo& i, const IntRect& r)
++{
++    // FIXME: should use theme-aware drawing
++    return true;
++}
++
++bool RenderThemeGdk::paintTextArea(RenderObject* o, const RenderObject::PaintInfo& i, const IntRect& r)
++{
++    return paintTextField(o, i, r);
++}
++
+ void RenderThemeGdk::adjustButtonStyle(CSSStyleSelector* selector, RenderStyle* style, WebCore::Element* e) const
+ {
+     addIntrinsicMargins(style);
+@@ -151,7 +201,6 @@
+ 
+ void RenderThemeGdk::systemFont(int propId, FontDescription&) const
+ {
+-
+ }
+ 
+ }
+Index: WebCore/platform/gdk/FontGdk.cpp
+===================================================================
+--- WebCore/platform/gdk/FontGdk.cpp	(revision 19028)
++++ WebCore/platform/gdk/FontGdk.cpp	(working copy)
+@@ -41,7 +41,7 @@
+ 
+     // Set the text color to use for drawing.
+     float red, green, blue, alpha;
+-    Color penColor = graphicsContext->pen().color();
++    Color penColor = graphicsContext->fillColor();
+     penColor.getRGBA(red, green, blue, alpha);
+     cairo_set_source_rgba(context, red, green, blue, alpha);
+ 
+@@ -52,7 +52,7 @@
+ 
+     float offset = point.x();
+ 
+-    for (unsigned i = 0; i < numGlyphs; i++) {
++    for (int i = 0; i < numGlyphs; i++) {
+         glyphs[i].x = offset;
+         glyphs[i].y = point.y();
+         offset += glyphBuffer.advanceAt(from + i);
+Index: WebCore/platform/gdk/RenderThemeGdk.h
+===================================================================
+--- WebCore/platform/gdk/RenderThemeGdk.h	(revision 19028)
++++ WebCore/platform/gdk/RenderThemeGdk.h	(working copy)
+@@ -43,12 +43,14 @@
+     // A method asking if the theme's controls actually care about redrawing when hovered.
+     virtual bool supportsHover(const RenderStyle* style) const { return true; }
+ 
+-    virtual bool paintCheckbox(RenderObject* o, const RenderObject::PaintInfo& i, const IntRect& r)
+-    { return paintButton(o, i, r); }
++    // System fonts.
++    virtual void systemFont(int propId, FontDescription&) const;
++
++protected:
++    virtual bool paintCheckbox(RenderObject* o, const RenderObject::PaintInfo& i, const IntRect& r);
+     virtual void setCheckboxSize(RenderStyle* style) const;
+ 
+-    virtual bool paintRadio(RenderObject* o, const RenderObject::PaintInfo& i, const IntRect& r)
+-    { return paintButton(o, i, r); }
++    virtual bool paintRadio(RenderObject* o, const RenderObject::PaintInfo& i, const IntRect& r);
+     virtual void setRadioSize(RenderStyle* style) const;
+ 
+     virtual void adjustButtonStyle(CSSStyleSelector*, RenderStyle*, Element*) const;
+@@ -57,8 +59,7 @@
+     virtual void adjustTextFieldStyle(CSSStyleSelector*, RenderStyle*, Element*) const;
+     virtual bool paintTextField(RenderObject*, const RenderObject::PaintInfo&, const IntRect&);
+ 
+-    // System fonts.
+-    virtual void systemFont(int propId, FontDescription&) const;
++    virtual bool paintTextArea(RenderObject*, const RenderObject::PaintInfo&, const IntRect&);
+ 
+ private:
+     void addIntrinsicMargins(RenderStyle*) const;
+Index: WebCore/platform/ScrollView.h
+===================================================================
+--- WebCore/platform/ScrollView.h	(revision 19028)
++++ WebCore/platform/ScrollView.h	(working copy)
+@@ -129,11 +129,12 @@
+ #endif
+ 
+ #if PLATFORM(GDK)
++        ScrollView();
++        ~ScrollView();
++
+         void updateView(const IntRect&, bool now = false);
+         virtual void setDrawable(GdkDrawable* drawable);
+         virtual void setFrameGeometry(const IntRect&);
+-        ScrollView();
+-        ~ScrollView();
+     private:
+         void updateScrollbars();
+         IntSize maximumScroll() const;
+Index: WebCore/platform/image-decoders/jpeg/JPEGImageDecoder.cpp
+===================================================================
+--- WebCore/platform/image-decoders/jpeg/JPEGImageDecoder.cpp	(revision 19028)
++++ WebCore/platform/image-decoders/jpeg/JPEGImageDecoder.cpp	(working copy)
+@@ -128,7 +128,7 @@
+     void close() {
+         decoder_source_mgr* src = (decoder_source_mgr*)m_info.src;
+         if (src)
+-            free(src);
++            fastFree(src);
+         m_info.src = 0;
+ 
+         jpeg_destroy_decompress(&m_info);
+Index: WebCore/Projects/gdk/webcore-gdk.bkl
+===================================================================
+--- WebCore/Projects/gdk/webcore-gdk.bkl	(revision 19028)
++++ WebCore/Projects/gdk/webcore-gdk.bkl	(working copy)
+@@ -37,17 +37,17 @@
+         <dirname>.</dirname>
+         <pic>on</pic>
+         <threading>multi</threading>
+-        <warnings>default</warnings>
+         <cxx-rtti>off</cxx-rtti>
+         <cxx-exceptions>off</cxx-exceptions>
+         <debug-info>on</debug-info>
++        <warnings>default</warnings>
++        <optimize>off</optimize>
+         <include>$(SRCDIR)/platform/gdk</include>
+         <include>$(SRCDIR)/platform/network/gdk</include>
+         <define>BUILDING_GDK__</define>
+         <define>BUILDING_CAIRO__</define>
+         <include>platform/gdk</include>
+         <include>platform/graphics/cairo</include>
+-        <include>$(SRCDIR)/kcanvas/device/cairo</include>
+         <define>XPATH_SUPPORT</define>
+         <!-- gdk build broken with without NDEBUG defined -->
+         <define>NDEBUG</define>
+@@ -60,7 +60,7 @@
+             platform/gdk/FontGdk.cpp
+             platform/gdk/FontPlatformDataGdk.cpp
+             platform/gdk/FrameGdk.cpp
+-            platform/gdk/GlyphMapGdk.cpp
++            platform/gdk/GlyphPageTreeNode.cpp
+             platform/gdk/KeyEventGdk.cpp
+             platform/gdk/MouseEventGdk.cpp
+             platform/gdk/PageGdk.cpp
+Index: WebCore/WebCoreSources.bkl
+===================================================================
+--- WebCore/WebCoreSources.bkl	(revision 19028)
++++ WebCore/WebCoreSources.bkl	(working copy)
+@@ -98,15 +98,27 @@
+         DerivedSources/WebCore/XPathGrammar.cpp
+     </set>
+ 
++    <set append="1" var="WEBCORE_SOURCES_HISTORY">
++        history/BackForwardList.cpp
++        history/HistoryItem.cpp
++        history/HistoryItemTimer.cpp
++        history/PageCache.cpp
++    </set>
++
+     <set append="1" var="WEBCORE_SOURCES_PAGE">
+         page/Chrome.cpp
++        page/ContextMenuController.cpp
+         page/DOMWindow.cpp
++        page/EventHandler.cpp
++        page/FocusController.cpp
+         page/Frame.cpp
+         page/FrameTree.cpp
+         page/FrameView.cpp
+         page/MouseEventWithHitTestResults.cpp
+         page/Page.cpp
+         page/PageState.cpp
++        page/Settings.cpp
++        page/gdk/EventHandlerGdk.cpp
+     </set>
+ 
+     <set append="1" var="WEBCORE_SOURCES_LOADER">
+@@ -123,21 +135,28 @@
+         loader/FrameLoader.cpp
+         loader/ImageDocument.cpp
+         loader/MainResourceLoader.cpp
++        loader/NavigationAction.cpp
+         loader/NetscapePlugInStreamLoader.cpp
+         loader/PluginDocument.cpp
++        loader/ProgressTracker.cpp
+         loader/Request.cpp
+         loader/ResourceLoader.cpp
+         loader/SubresourceLoader.cpp
+         loader/TextDocument.cpp
+         loader/TextResourceDecoder.cpp
+         loader/loader.cpp
++        loader/gdk/DocumentLoaderGdk.cpp
++        loader/gdk/FrameLoaderClientGdk.cpp
++        loader/gdk/FrameLoaderGdk.cpp
+     </set>
+ 
+     <set append="1" var="WEBCORE_SOURCES_PLATFORM">
+         platform/Arena.cpp
+         platform/ArrayImpl.cpp
+         platform/AtomicString.cpp
++        platform/Base64.cpp
+         platform/CString.cpp
++        platform/ContextMenu.cpp
+         platform/DeprecatedCString.cpp
+         platform/DeprecatedPtrListImpl.cpp
+         platform/DeprecatedString.cpp
+@@ -156,8 +175,10 @@
+         platform/RegularExpression.cpp
+         platform/ScrollBar.cpp
+         platform/SegmentedString.cpp
++        platform/SharedBuffer.cpp
+         platform/String.cpp
+         platform/StringImpl.cpp
++        platform/TextBreakIteratorICU.cpp
+         platform/TextCodec.cpp
+         platform/TextCodecICU.cpp
+         platform/TextCodecLatin1.cpp
+@@ -169,6 +190,7 @@
+         platform/Timer.cpp
+         platform/Widget.cpp
+         platform/graphics/AffineTransform.cpp
++        platform/graphics/BitmapImage.cpp
+         platform/graphics/Color.cpp
+         platform/graphics/FloatPoint.cpp
+         platform/graphics/FloatRect.cpp
+@@ -178,9 +200,16 @@
+         platform/graphics/Image.cpp
+         platform/graphics/IntRect.cpp
+         platform/graphics/Path.cpp
++        platform/graphics/PathTraversalState.cpp
+         platform/graphics/Pen.cpp
++        platform/network/AuthenticationChallenge.cpp
++        platform/network/Credential.cpp
++        platform/network/HTTPParsers.cpp
+         platform/network/FormData.cpp
++        platform/network/ProtectionSpace.cpp
+         platform/network/ResourceHandle.cpp
++        platform/network/ResourceRequest.cpp
++        platform/network/ResourceResponse.cpp
+     </set>
+ 
+     <set append="1" var="WEBCORE_SOURCES_WIN">
+@@ -292,6 +321,7 @@
+     </set>
+ 
+     <set append="1" var="WEBCORE_SOURCES_PLATFORM_CAIRO">
++        platform/graphics/cairo/AffineTransformCairo.cpp
+         platform/graphics/cairo/GraphicsContextCairo.cpp
+         platform/graphics/cairo/ImageCairo.cpp
+         platform/graphics/cairo/ImageSourceCairo.cpp
+@@ -402,7 +432,6 @@
+         rendering/AutoTableLayout.cpp
+         rendering/CounterNode.cpp
+         rendering/CounterResetNode.cpp
+-        rendering/DeprecatedSlider.cpp
+         rendering/EllipsisBox.cpp
+         rendering/FixedTableLayout.cpp
+         rendering/HitTestResult.cpp
+@@ -437,6 +466,7 @@
+         rendering/RenderPart.cpp
+         rendering/RenderPartObject.cpp
+         rendering/RenderReplaced.cpp
++        rendering/RenderSlider.cpp
+         rendering/RenderStyle.cpp
+         rendering/RenderTable.cpp
+         rendering/RenderTableCell.cpp
+@@ -500,6 +530,7 @@
+         dom/EntityReference.cpp
+         dom/Event.cpp
+         dom/EventNames.cpp
++        dom/EventTarget.cpp
+         dom/EventTargetNode.cpp
+         dom/KeyboardEvent.cpp
+         dom/MappedAttribute.cpp
+@@ -521,6 +552,7 @@
+         dom/QualifiedName.cpp
+         dom/Range.cpp
+         dom/RegisteredEventListener.cpp
++        dom/StyleElement.cpp
+         dom/StyledElement.cpp
+         dom/Text.cpp
+         dom/Traversal.cpp
+@@ -572,7 +604,6 @@
+         editing/MergeIdenticalElementsCommand.cpp
+         editing/ModifySelectionListLevel.cpp
+         editing/MoveSelectionCommand.cpp
+-        editing/RebalanceWhitespaceCommand.cpp
+         editing/RemoveCSSPropertyCommand.cpp
+         editing/RemoveNodeAttributeCommand.cpp
+         editing/RemoveNodeCommand.cpp
+Index: WebCore/webcore-base.bkl
+===================================================================
+--- WebCore/webcore-base.bkl	(revision 19028)
++++ WebCore/webcore-base.bkl	(working copy)
+@@ -49,6 +49,7 @@
+         $(WEBCORE_SOURCES_JS)
+         $(WEBCORE_SOURCES_LOADER)
+         $(WEBCORE_SOURCES_PAGE)
++        $(WEBCORE_SOURCES_HISTORY)
+         $(WEBCORE_SOURCES_PLATFORM)
+         $(WEBCORE_SOURCES_PNG)
+         $(WEBCORE_SOURCES_RENDERING)
+@@ -70,20 +71,23 @@
+ 
+     <template id="webcore_base" template="xml2,iconv,xslt,icu,jscore">
+         <include>$(SRCDIR)</include>
+-        <include>$(SRCDIR)/DerivedSources/WebCore</include>
+         <include>$(SRCDIR)/bindings/js</include>
+         <include>$(SRCDIR)/bridge</include>
+         <include>$(SRCDIR)/css</include>
++        <include>$(SRCDIR)/DerivedSources/WebCore</include>
+         <include>$(SRCDIR)/dom</include>
+         <include>$(SRCDIR)/editing</include>
++        <include>$(SRCDIR)/history</include>
+         <include>$(SRCDIR)/html</include>
+         <include>$(SRCDIR)/include</include>
+-        <include>$(SRCDIR)/kcanvas/device</include>
+-        <include>$(SRCDIR)/kcanvas</include>
++        <include>$(SRCDIR)/loader</include>
++        <include>$(SRCDIR)/loader/gdk</include>
+         <include>$(SRCDIR)/loader/icon</include>
+-        <include>$(SRCDIR)/loader</include>
+         <include>$(SRCDIR)/page</include>
++        <include>$(SRCDIR)/platform</include>
+         <include>$(SRCDIR)/platform/graphics</include>
++        <include>$(SRCDIR)/platform/graphics/gdk</include>
++        <include>$(SRCDIR)/platform/image-decoders</include>
+         <include>$(SRCDIR)/platform/image-decoders/bmp</include>
+         <include>$(SRCDIR)/platform/image-decoders/gif</include>
+         <include>$(SRCDIR)/platform/image-decoders/ico</include>
+@@ -91,9 +95,8 @@
+         <include>$(SRCDIR)/platform/image-decoders/png</include>
+         <include>$(SRCDIR)/platform/image-decoders/xbm</include>
+         <include>$(SRCDIR)/platform/image-decoders/zlib</include>
+-        <include>$(SRCDIR)/platform/image-decoders</include>
+         <include>$(SRCDIR)/platform/network</include>
+-        <include>$(SRCDIR)/platform</include>
++        <include>$(SRCDIR)/platform/network/gdk</include>
+         <include>$(SRCDIR)/rendering</include>
+         <include>$(SRCDIR)/xml</include>
+ 
+Index: WebCore/loader/FrameLoader.cpp
+===================================================================
+--- WebCore/loader/FrameLoader.cpp	(revision 19028)
++++ WebCore/loader/FrameLoader.cpp	(working copy)
+@@ -2658,7 +2658,7 @@
+         }
+         
+         case FrameStateCommittedPage: {
+-            DocumentLoader* dl = m_documentLoader.get();            
++            DocumentLoader* dl = m_documentLoader.get();
+             if (dl->isLoadingInAPISense())
+                 return;
+ 
+@@ -4213,7 +4213,8 @@
+ 
+ void FrameLoader::setTitle(const String& title)
+ {
+-    documentLoader()->setTitle(title);
++    if (documentLoader())
++        documentLoader()->setTitle(title);
+ }
+ 
+ KURL FrameLoader::originalRequestURL() const
+Index: WebCore/loader/gdk/FrameLoaderClientGdk.cpp
+===================================================================
+--- WebCore/loader/gdk/FrameLoaderClientGdk.cpp	(revision 0)
++++ WebCore/loader/gdk/FrameLoaderClientGdk.cpp	(revision 0)
+@@ -0,0 +1,158 @@
++/*
++ * Copyright (C) 2006 Don Gibson <dgibson77@gmail.com>
++ *
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY APPLE COMPUTER, INC. ``AS IS'' AND ANY
++ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
++ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL APPLE COMPUTER, INC. OR
++ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
++ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
++ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
++ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
++ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++ 
++#include "config.h"
++#include "FrameLoaderClientGdk.h"
++#include "DocumentLoader.h"
++#include "FrameGdk.h"
++#include "FrameLoader.h"
++#include "PlatformString.h"
++#include "ResourceRequest.h"
++#include <stdio.h>
++
++#define notImplemented() do { fprintf(stderr, "%s FIXME: UNIMPLEMENTED %s:%d\n", __PRETTY_FUNCTION__, __FILE__, __LINE__); } while(0)
++
++namespace WebCore
++{
++
++FrameLoaderClientGdk::FrameLoaderClientGdk()
++    : m_frame(0)
++    , m_firstData(false)
++{
++}
++
++Frame* FrameLoaderClientGdk::frame()
++{ 
++    return static_cast<Frame*>(m_frame);
++}
++
++String FrameLoaderClientGdk::userAgent()
++{
++    return "Mozilla/5.0 (PC; U; Intel; Windows; en) AppleWebKit/420+ (KHTML, like Gecko)";
++}
++
++PassRefPtr<DocumentLoader> FrameLoaderClientGdk::createDocumentLoader(const ResourceRequest& request)
++{ 
++    RefPtr<DocumentLoader> loader = new DocumentLoader(request);
++    return loader.release();
++}
++
++void FrameLoaderClientGdk::dispatchWillSubmitForm(FramePolicyFunction policyFunction,  PassRefPtr<FormState>)
++{
++    // FIXME: This is surely too simple
++    ASSERT(frame() && policyFunction);
++    if (!frame() || !policyFunction)
++        return;
++    (frame()->loader()->*policyFunction)(PolicyUse);
++}
++
++
++void FrameLoaderClientGdk::committedLoad(DocumentLoader* loader, const char* data, int length)
++{
++    if (!frame())
++        return;
++    FrameLoader *fl = loader->frameLoader();
++    fl->setEncoding(m_response.textEncodingName(), false);
++    fl->addData(data, length);
++}
++
++void FrameLoaderClientGdk::dispatchDidReceiveAuthenticationChallenge(DocumentLoader*, unsigned long  identifier, const AuthenticationChallenge&)
++{
++    notImplemented();
++}
++
++void FrameLoaderClientGdk::dispatchDidCancelAuthenticationChallenge(DocumentLoader*, unsigned long  identifier, const AuthenticationChallenge&)
++{
++    notImplemented();
++}
++
++void FrameLoaderClientGdk::dispatchWillSendRequest(DocumentLoader*, unsigned long , ResourceRequest&, const ResourceResponse&)
++{
++    notImplemented();
++}
++
++void FrameLoaderClientGdk::assignIdentifierToInitialRequest(unsigned long identifier, DocumentLoader*, const ResourceRequest&)
++{
++    notImplemented();   
++}
++
++void FrameLoaderClientGdk::postProgressStartedNotification()
++{
++    // no progress notification for now
++}
++
++void FrameLoaderClientGdk::postProgressEstimateChangedNotification()
++{
++    // no progress notification for now    
++}
++
++void FrameLoaderClientGdk::postProgressFinishedNotification()
++{
++    // no progress notification for now
++}
++
++void FrameLoaderClientGdk::frameLoaderDestroyed()
++{
++    m_frame = 0;
++    delete this;
++}
++
++void FrameLoaderClientGdk::dispatchDidReceiveResponse(DocumentLoader*, unsigned long, const ResourceResponse& response)
++{
++    m_response = response;
++    m_firstData = true;
++}
++
++void FrameLoaderClientGdk::dispatchDecidePolicyForMIMEType(FramePolicyFunction policyFunction, const String&, const ResourceRequest&)
++{
++    // FIXME: we need to call directly here (comment copied from Qt version)
++    ASSERT(frame() && policyFunction);
++    if (!frame() || !policyFunction)
++        return;
++    (frame()->loader()->*policyFunction)(PolicyUse);
++}
++
++void FrameLoaderClientGdk::dispatchDecidePolicyForNewWindowAction(FramePolicyFunction policyFunction, const NavigationAction&, const ResourceRequest&, const String&)
++{
++    ASSERT(frame() && policyFunction);
++    if (!frame() || !policyFunction)
++        return;
++    // FIXME: I think Qt version marshals this to another thread so when we
++    // have multi-threaded download, we might need to do the same
++    (frame()->loader()->*policyFunction)(PolicyIgnore);
++}
++
++void FrameLoaderClientGdk::dispatchDecidePolicyForNavigationAction(FramePolicyFunction policyFunction, const NavigationAction&, const ResourceRequest&)
++{
++    ASSERT(frame() && policyFunction);
++    if (!frame() || !policyFunction)
++        return;
++    (frame()->loader()->*policyFunction)(PolicyUse);
++}
++
++
++}
+
+Property changes on: WebCore/loader/gdk/FrameLoaderClientGdk.cpp
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Index: WebCore/loader/gdk/FrameLoaderGdk.cpp
+===================================================================
+--- WebCore/loader/gdk/FrameLoaderGdk.cpp	(revision 0)
++++ WebCore/loader/gdk/FrameLoaderGdk.cpp	(revision 0)
+@@ -0,0 +1,89 @@
++/*
++ * Copyright (C) 2006 Don Gibson <dgibson77@gmail.com>
++ *
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY APPLE COMPUTER, INC. ``AS IS'' AND ANY
++ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
++ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL APPLE COMPUTER, INC. OR
++ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
++ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
++ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
++ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
++ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#include "config.h"
++#include "FrameLoader.h"
++
++#include "DocumentLoader.h"
++#include "Element.h"
++#include "Frame.h"
++#include "FrameLoaderClient.h"
++#include "HTMLFrameOwnerElement.h"
++#include "ResourceRequest.h"
++#include "Widget.h"
++
++#define notImplemented() do { fprintf(stderr, "%s FIXME: UNIMPLEMENTED %s:%d\n", __PRETTY_FUNCTION__, __FILE__, __LINE__); } while(0)
++
++namespace WebCore {
++
++Frame* FrameLoader::createFrame(const KURL& url, const String& name, HTMLFrameOwnerElement* ownerElement, const String& referrer)
++{
++    notImplemented();
++    return 0;
++}
++
++ObjectContentType FrameLoader::objectContentType(const KURL&, const String& mimeType)
++{
++    notImplemented();
++    return ObjectContentType();
++}
++
++Widget* FrameLoader::createPlugin(Element*, const KURL&, const Vector<String>&, const Vector<String>&, const String&)
++{
++    notImplemented();
++    return 0;
++}
++
++Widget* FrameLoader::createJavaAppletWidget(const IntSize&, Element*, const HashMap<String, String>&)
++{
++    notImplemented();
++    return 0;
++}
++
++String FrameLoader::overrideMediaType() const
++{
++    // no-op
++    return String();
++}
++
++void FrameLoader::partClearedInBegin()
++{
++    notImplemented();
++}
++
++void FrameLoader::didChangeTitle(DocumentLoader* loader)
++{
++    notImplemented();
++    m_client->didChangeTitle(loader);
++}
++
++void FrameLoader::redirectDataToPlugin(Widget* pluginWidget)
++{
++    notImplemented();
++}
++
++}
+
+Property changes on: WebCore/loader/gdk/FrameLoaderGdk.cpp
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Index: WebCore/loader/gdk/DocumentLoaderGdk.cpp
+===================================================================
+--- WebCore/loader/gdk/DocumentLoaderGdk.cpp	(revision 0)
++++ WebCore/loader/gdk/DocumentLoaderGdk.cpp	(revision 0)
+@@ -0,0 +1,52 @@
++/*
++ * Copyright (C) 2006 Don Gibson <dgibson77@gmail.com>
++ * Copyright (C) 2007 Krzysztof Kowalczyk <kkowalczyk@gmail.com>
++ *
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY APPLE COMPUTER, INC. ``AS IS'' AND ANY
++ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
++ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL APPLE COMPUTER, INC. OR
++ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
++ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
++ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
++ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
++ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#include "config.h"
++#include "DocumentLoader.h"
++
++#include "KURL.h"
++#include <stdio.h>
++
++#define notImplemented() do { fprintf(stderr, "%s FIXME: UNIMPLEMENTED %s:%d\n", __PRETTY_FUNCTION__, __FILE__, __LINE__); } while(0)
++
++namespace WebCore {
++
++bool DocumentLoader::getResponseModifiedHeader(String& modified) const
++{
++    notImplemented();
++    return false;
++}
++
++const KURL DocumentLoader::unreachableURL() const
++{
++    notImplemented();
++    return KURL();
++}
++
++}
++
+
+Property changes on: WebCore/loader/gdk/DocumentLoaderGdk.cpp
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Index: WebCore/loader/gdk/FrameLoaderClientGdk.h
+===================================================================
+--- WebCore/loader/gdk/FrameLoaderClientGdk.h	(revision 0)
++++ WebCore/loader/gdk/FrameLoaderClientGdk.h	(revision 0)
+@@ -0,0 +1,174 @@
++/*
++ * Copyright (C) 2006 Don Gibson <dgibson77@gmail.com>
++ *
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY APPLE COMPUTER, INC. ``AS IS'' AND ANY
++ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
++ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL APPLE COMPUTER, INC. OR
++ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
++ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
++ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
++ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
++ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#ifndef FrameLoaderClientGdk_H
++#define FrameLoaderClientGdk_H
++
++#include "FrameLoaderClient.h"
++
++#include "ResourceResponse.h"
++
++namespace WebCore {
++
++    class FrameGdk;
++
++    class FrameLoaderClientGdk : public FrameLoaderClient {
++    public:
++        FrameLoaderClientGdk();
++        virtual ~FrameLoaderClientGdk() { }
++        virtual void frameLoaderDestroyed();
++
++        void setFrame(FrameGdk *frame) { m_frame = frame; }
++        Frame* frame();
++
++        virtual bool hasWebView() const;
++        virtual bool hasFrameView() const;
++
++        virtual bool privateBrowsingEnabled() const;
++
++        virtual void makeDocumentView();
++        virtual void makeRepresentation(DocumentLoader*);
++        virtual void setDocumentViewFromPageCache(PageCache*);
++        virtual void forceLayout();
++        virtual void forceLayoutForNonHTML();
++
++        virtual void setCopiesOnScroll();
++
++        virtual void detachedFromParent1();
++        virtual void detachedFromParent2();
++        virtual void detachedFromParent3();
++        virtual void detachedFromParent4();
++
++        virtual void loadedFromPageCache();
++
++        virtual void assignIdentifierToInitialRequest(unsigned long identifier, DocumentLoader*, const ResourceRequest&);
++
++        virtual void dispatchWillSendRequest(DocumentLoader*, unsigned long  identifier, ResourceRequest&, const ResourceResponse& redirectResponse);
++        virtual void dispatchDidReceiveAuthenticationChallenge(DocumentLoader*, unsigned long identifier, const AuthenticationChallenge&);
++        virtual void dispatchDidCancelAuthenticationChallenge(DocumentLoader*, unsigned long  identifier, const AuthenticationChallenge&);
++        virtual void dispatchDidReceiveResponse(DocumentLoader*, unsigned long  identifier, const ResourceResponse&);
++        virtual void dispatchDidReceiveContentLength(DocumentLoader*, unsigned long identifier, int lengthReceived);
++        virtual void dispatchDidFinishLoading(DocumentLoader*, unsigned long  identifier);
++        virtual void dispatchDidFailLoading(DocumentLoader*, unsigned long  identifier, const ResourceError&);
++        virtual bool dispatchDidLoadResourceFromMemoryCache(DocumentLoader*, const ResourceRequest&, const ResourceResponse&, int length);
++
++        virtual void dispatchDidHandleOnloadEvents();
++        virtual void dispatchDidReceiveServerRedirectForProvisionalLoad();
++        virtual void dispatchDidCancelClientRedirect();
++        virtual void dispatchWillPerformClientRedirect(const KURL&, double, double);
++        virtual void dispatchDidChangeLocationWithinPage();
++        virtual void dispatchWillClose();
++        virtual void dispatchDidReceiveIcon();
++        virtual void dispatchDidStartProvisionalLoad();
++        virtual void dispatchDidReceiveTitle(const String&);
++        virtual void dispatchDidCommitLoad();
++        virtual void dispatchDidFailProvisionalLoad(const ResourceError&);
++        virtual void dispatchDidFailLoad(const ResourceError&);
++        virtual void dispatchDidFinishDocumentLoad();
++        virtual void dispatchDidFinishLoad();
++        virtual void dispatchDidFirstLayout();
++
++        virtual Frame* dispatchCreatePage();
++        virtual void dispatchShow();
++
++        virtual void dispatchDecidePolicyForMIMEType(FramePolicyFunction, const String& MIMEType, const ResourceRequest&);
++        virtual void dispatchDecidePolicyForNewWindowAction(FramePolicyFunction, const NavigationAction&, const ResourceRequest&, const String& frameName);
++        virtual void dispatchDecidePolicyForNavigationAction(FramePolicyFunction, const NavigationAction&, const ResourceRequest&);
++        virtual void cancelPolicyCheck();
++
++        virtual void dispatchUnableToImplementPolicy(const ResourceError&);
++
++        virtual void dispatchWillSubmitForm(FramePolicyFunction, PassRefPtr<FormState>);
++
++        virtual void dispatchDidLoadMainResource(DocumentLoader*);
++        virtual void revertToProvisionalState(DocumentLoader*);
++        virtual void setMainDocumentError(DocumentLoader*, const ResourceError&);
++        virtual void clearUnarchivingState(DocumentLoader*);
++
++        virtual void postProgressStartedNotification();
++        virtual void postProgressEstimateChangedNotification();
++        virtual void postProgressFinishedNotification();
++        virtual void setMainFrameDocumentReady(bool);
++
++        virtual void startDownload(const ResourceRequest&);
++
++        virtual void willChangeTitle(DocumentLoader*);
++        virtual void didChangeTitle(DocumentLoader*);
++
++        virtual void committedLoad(DocumentLoader*, const char*, int);
++        virtual void finishedLoading(DocumentLoader*);
++        virtual void finalSetupForReplace(DocumentLoader*);
++
++        virtual void updateGlobalHistoryForStandardLoad(const KURL&);
++        virtual void updateGlobalHistoryForReload(const KURL&);
++        virtual bool shouldGoToHistoryItem(HistoryItem*) const;
++
++        virtual ResourceError cancelledError(const ResourceRequest&);
++        virtual ResourceError cannotShowURLError(const ResourceRequest&);
++        virtual ResourceError interruptForPolicyChangeError(const ResourceRequest&);
++
++        virtual ResourceError cannotShowMIMETypeError(const ResourceResponse&);
++        virtual ResourceError fileDoesNotExistError(const ResourceResponse&);
++
++        virtual bool shouldFallBack(const ResourceError&);
++
++        virtual void setDefersLoading(bool);
++
++        virtual bool willUseArchive(ResourceLoader*, const ResourceRequest&, const KURL& originalURL) const;
++        virtual bool isArchiveLoadPending(ResourceLoader*) const;
++        virtual void cancelPendingArchiveLoad(ResourceLoader*);
++        virtual void clearArchivedResources();
++
++        virtual bool canHandleRequest(const ResourceRequest&) const;
++        virtual bool canShowMIMEType(const String&) const;
++        virtual bool representationExistsForURLScheme(const String&) const;
++        virtual String generatedMIMETypeForURLScheme(const String&) const;
++
++        virtual void frameLoadCompleted();
++        virtual void saveScrollPositionAndViewStateToItem(HistoryItem*);
++        virtual void restoreScrollPositionAndViewState();
++        virtual void provisionalLoadStarted();
++        virtual void didFinishLoad();
++        virtual void prepareForDataSourceReplacement();
++
++        virtual PassRefPtr<DocumentLoader> createDocumentLoader(const ResourceRequest&);
++        virtual void setTitle(const String& title, const KURL&);
++
++        virtual String userAgent();
++
++        virtual void saveDocumentViewToPageCache(PageCache*);
++        virtual bool canCachePage() const;
++        virtual void download(ResourceHandle*, const ResourceRequest&, const ResourceResponse&);
++    private:
++        FrameGdk *m_frame;
++        ResourceResponse m_response;
++        bool m_firstData;
++    };
++
++}
++
++#endif
+
+Property changes on: WebCore/loader/gdk/FrameLoaderClientGdk.h
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Index: WebCore/page/gdk/EventHandlerGdk.cpp
+===================================================================
+--- WebCore/page/gdk/EventHandlerGdk.cpp	(revision 0)
++++ WebCore/page/gdk/EventHandlerGdk.cpp	(revision 0)
+@@ -0,0 +1,180 @@
++/*
++ * Copyright (C) 2006 Zack Rusin <zack@kde.org>
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY APPLE COMPUTER, INC. ``AS IS'' AND ANY
++ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
++ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL APPLE COMPUTER, INC. OR
++ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
++ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
++ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
++ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
++ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
++ */
++
++#include "config.h"
++#include "EventHandler.h"
++
++#include "EventNames.h"
++#include "FloatPoint.h"
++#include "FocusController.h"
++#include "Frame.h"
++#include "FrameView.h"
++#include "KeyboardEvent.h"
++#include "MouseEventWithHitTestResults.h"
++#include "Page.h"
++#include "PlatformScrollBar.h"
++#include "PlatformWheelEvent.h"
++#include "RenderWidget.h"
++
++namespace WebCore {
++
++using namespace EventNames;
++
++#define notImplemented() do { fprintf(stderr, "%s FIXME: UNIMPLEMENTED %s:%d\n", __PRETTY_FUNCTION__, __FILE__, __LINE__); } while(0)
++
++static bool isKeyboardOptionTab(KeyboardEvent* event)
++{
++    return event
++        && (event->type() == keydownEvent || event->type() == keypressEvent)
++        && event->altKey()
++        && event->keyIdentifier() == "U+000009";
++}
++
++bool EventHandler::tabsToLinks(KeyboardEvent* event) const
++{
++    return isKeyboardOptionTab(event);
++}
++
++bool EventHandler::tabsToAllControls(KeyboardEvent* event) const
++{
++    bool handlingOptionTab = isKeyboardOptionTab(event);
++    
++    return handlingOptionTab;
++}
++
++void EventHandler::freeClipboard()
++{
++    notImplemented();
++}
++
++void EventHandler::focusDocumentView()
++{
++    if (Page* page = m_frame->page())
++        page->focusController()->setFocusedFrame(m_frame);
++}
++
++bool EventHandler::passWidgetMouseDownEventToWidget(const MouseEventWithHitTestResults& event)
++{
++    // Figure out which view to send the event to.
++    RenderObject* target = event.targetNode() ? event.targetNode()->renderer() : 0;
++    if (!target || !target->isWidget())
++        return false;
++    
++    // Double-click events don't exist in Cocoa. Since passWidgetMouseDownEventToWidget will
++    // just pass currentEvent down to the widget, we don't want to call it for events that
++    // don't correspond to Cocoa events.  The mousedown/ups will have already been passed on as
++    // part of the pressed/released handling.
++    return passMouseDownEventToWidget(static_cast<RenderWidget*>(target)->widget());
++}
++
++bool EventHandler::passWidgetMouseDownEventToWidget(RenderWidget* renderWidget)
++{
++    return passMouseDownEventToWidget(renderWidget->widget());
++}
++
++bool EventHandler::passMouseDownEventToWidget(Widget* widget)
++{
++    // FIXME: this method always returns true
++    notImplemented();
++    return false;
++}
++
++bool EventHandler::lastEventIsMouseUp() const
++{
++    notImplemented();
++    return false;
++}
++    
++bool EventHandler::dragHysteresisExceeded(const FloatPoint& floatDragViewportLocation) const
++{
++    notImplemented();
++    return false;
++}
++
++bool EventHandler::handleDrag(const MouseEventWithHitTestResults& event)
++{
++    //notImplemented();
++    return false;
++}
++
++bool EventHandler::handleMouseUp(const MouseEventWithHitTestResults& event)
++{
++    notImplemented();
++    
++    return false;
++}
++
++bool EventHandler::passSubframeEventToSubframe(MouseEventWithHitTestResults& event, Frame* subframe)
++{
++    notImplemented();
++    return false;
++}
++
++bool EventHandler::passWheelEventToWidget(Widget* widget)
++{
++    notImplemented();
++    return false;
++}
++
++// Called as we walk up the element chain for nodes with CSS property -webkit-user-drag == auto
++bool EventHandler::shouldDragAutoNode(Node* node, const IntPoint& point) const
++{
++    notImplemented();
++    return false;
++}
++
++// returns if we should continue "default processing", i.e., whether eventhandler canceled
++bool EventHandler::dispatchDragSrcEvent(const AtomicString& eventType, const PlatformMouseEvent& event)
++{
++    notImplemented();
++    return false;
++}
++
++bool EventHandler::passMousePressEventToSubframe(MouseEventWithHitTestResults& mev, Frame* subframe)
++{
++    return passSubframeEventToSubframe(mev, subframe);
++}
++
++bool EventHandler::passMouseMoveEventToSubframe(MouseEventWithHitTestResults& mev, Frame* subframe)
++{
++    return passSubframeEventToSubframe(mev, subframe);
++}
++
++bool EventHandler::passMouseReleaseEventToSubframe(MouseEventWithHitTestResults& mev, Frame* subframe)
++{
++    return passSubframeEventToSubframe(mev, subframe);
++}
++
++bool EventHandler::passWheelEventToSubframe(PlatformWheelEvent&, Frame* subframe)
++{
++    return passWheelEventToWidget(subframe->view());
++}
++
++bool EventHandler::passMousePressEventToScrollbar(MouseEventWithHitTestResults&, PlatformScrollbar* scrollbar)
++{
++    return passWheelEventToWidget(scrollbar);
++}
++
++}
+
+Property changes on: WebCore/page/gdk/EventHandlerGdk.cpp
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Index: WebKitTools/GdkLauncher/main.cpp
+===================================================================
+--- WebKitTools/GdkLauncher/main.cpp	(revision 19028)
++++ WebKitTools/GdkLauncher/main.cpp	(working copy)
+@@ -1,48 +1,25 @@
+-#include <assert.h>
+-#include <stdio.h>
+-#include <string.h>
+-#include <unistd.h>
+-#include <gdk/gdk.h>
+-#include <gtk/gtk.h>
+ #include "config.h"
++#include "ChromeClientGdk.h"
+ #include "FrameGdk.h"
+-#include "Page.h"
+ #include "Document.h"
+-#include "DocLoader.h"
+-#include "DOMImplementation.h"
++#include "FrameLoader.h"
++#include "FrameLoaderClientGdk.h"
++#include "FrameView.h"
++#include <gdk/gdk.h>
++#include <gtk/gtk.h>
++#include "KURL.h"
++#include "Page.h"
++#include "PlatformString.h"
+ 
+-#include "Cache.h"
+-#include "EventNames.h"
+-
+ #if SVG_SUPPORT
+ #include "SVGNames.h"
+ #include "XLinkNames.h"
+ #include "SVGDocumentExtensions.h"
+ #endif
+ 
+-#include "RenderObject.h"
+-#include "GraphicsContext.h"
+-
+ using namespace WebCore;
+ 
+-class LauncherFrameGdk : public FrameGdk
+-{
+-public:
+-    LauncherFrameGdk(Page* page, Element* element, PassRefPtr<EditorClient> editorClient) : FrameGdk(page, element, editorClient), m_exitAfterLoading(false) {}
+-    LauncherFrameGdk(GdkDrawable* drawable) : FrameGdk(drawable), m_exitAfterLoading(false) {}
+-    virtual void handledOnloadEvents();
+-    void setExitAfterLoading(bool exitAfterLoading) { m_exitAfterLoading = exitAfterLoading; }
+-private:
+-    bool m_exitAfterLoading;
+-};
+-
+-void LauncherFrameGdk::handledOnloadEvents()
+-{
+-    if (m_exitAfterLoading)
+-        gtk_main_quit();
+-}
+-
+-static  LauncherFrameGdk *frame;
++static  FrameGdk *frame;
+ static  GdkWindow *win;
+ 
+ static void handle_event(GdkEvent *event)
+@@ -65,11 +42,11 @@
+     attr.height = 600;
+     attr.window_type = GDK_WINDOW_TOPLEVEL;
+     attr.wclass = GDK_INPUT_OUTPUT;
+-    //see how where we handle motion here need to do the hint stuff
+     attr.event_mask = ((GDK_ALL_EVENTS_MASK^GDK_POINTER_MOTION_HINT_MASK)); 
+     win = gdk_window_new(NULL,&attr,0);
+-    frame = new LauncherFrameGdk(win);
+     gdk_window_show(win);
++
++    // parse command-line arguments
+     url = "http://www.google.com";
+     bool exitAfterLoading = false;
+     for (int argPos = 1; argPos < argc; ++argPos) {
+@@ -78,20 +55,27 @@
+         else
+             url = argv[argPos];
+     }
+-    frame->setExitAfterLoading(exitAfterLoading);
+-    if (url) {
+-        printf("OPENING URL == %s \n", url);
+-        frame->client()->openURL(url);
+-    } else {
++
++    Page* page = new Page(new ChromeClientGdk(), 0, 0);
++    FrameLoaderClientGdk* frameLoaderClient = new FrameLoaderClientGdk();
++    FrameGdkClient* client = new FrameGdkClient();
++    frame = new FrameGdk(page, 0, client, frameLoaderClient);
++
++    FrameView* frameView = new FrameView(frame);
++    frame->setView(frameView);
++    frameView->ScrollView::setDrawable(win);
++
+ #if 0
+-        char *pg = " <html><head><title>Google</title> <body bgcolor=#ffffff text=#000000> <p><font size=-2/>2006 Google Hello bigworld from mike</p></body></html> ";
+-        frame->createEmptyDocument();
+-        frame->document()->open();
+-        frame->write(pg,strlen(pg));
+-        frame->document()->close();
++    String pg(" <html><head><title>Google</title> <body bgcolor=#ffffff text=#000000> <p><font size=-2/>2006 Google Hello bigworld from mike</p></body></html> ");
++    frame->loader()->begin();
++    frame->document()->open();
++    frame->document()->write(pg);
++    frame->document()->close();
++#else
++    printf("OPENING URL == %s \n", url);
++    frame->client()->openURL(url);
+ #endif
+-    }
+-    
++
+     gtk_main();
+     delete frame;
+     gdk_window_destroy(win);
+Index: WebKitTools/GdkLauncher/gdklauncher.bkl
+===================================================================
+--- WebKitTools/GdkLauncher/gdklauncher.bkl	(revision 19028)
++++ WebKitTools/GdkLauncher/gdklauncher.bkl	(working copy)
+@@ -38,9 +38,11 @@
+         <include>$(TOPDIR)/WebCore/css</include>
+         <include>$(TOPDIR)/WebCore/dom</include>
+         <include>$(TOPDIR)/WebCore/editing</include>
++        <include>$(TOPDIR)/WebCore/history</include>
+         <include>$(TOPDIR)/WebCore/html</include>
+         <include>$(TOPDIR)/WebCore/include</include>
+         <include>$(TOPDIR)/WebCore/loader</include>
++        <include>$(TOPDIR)/WebCore/loader/gdk</include>
+         <include>$(TOPDIR)/WebCore/page</include>
+         <include>$(TOPDIR)/WebCore/platform/gdk</include>
+         <include>$(TOPDIR)/WebCore/platform/graphics/cairo</include>
+@@ -57,7 +59,6 @@
+ 
+         <pic>on</pic>
+         <threading>multi</threading>
+-        <warnings>default</warnings>
+         <debug-info>on</debug-info>
+ 
+         <define>BUILDING_GDK__</define>
+@@ -68,10 +69,11 @@
+     <set var="TOPDIR">../..</set>
+     <exe id="gdklauncher" template="webcore_gdk_link">
+         <ldflags>-L$(TOPDIR)/WebCore/Projects/gdk -lwebcore-gdk</ldflags>
+-        <warnings>default</warnings>
+         <cxx-rtti>off</cxx-rtti>
+         <cxx-exceptions>off</cxx-exceptions>
+         <debug-info>on</debug-info>
++        <warnings>default</warnings>
++        <optimize>off</optimize>
+         <sources>
+             main.cpp
+         </sources>

@@ -371,7 +371,6 @@ def define_wc_files(mfInfo):
   wc_comp_flags_info = CompFlagsInfo(prefix="wc", inc_dir="$(WC_INC)", c_flags="$(WC_CFLAGS)", cxx_flags="$(WC_CXXFLAGS)")
   wc_dirs = [
     './WebCore/bindings/js',
-#    './WebCore/bindings/objc',
 #    './WebCore/bridge/win',
     './WebCore/css',
     './WebCore/DerivedSources/WebCore', 
@@ -422,7 +421,6 @@ gdklauncher_files = [
   ['./WebCore/editing', []],
   ['./WebCore/history', []],
   ['./WebCore/html', []],
-#  ['./WebCore/loader', ['CachedXBLDocument.cpp', 'DocumentLoader.cpp']],
   ['./WebCore/loader', ['CachedXBLDocument.cpp']],
   ['./WebCore/loader/gdk', []],
   ['./WebCore/loader/icon', []],
