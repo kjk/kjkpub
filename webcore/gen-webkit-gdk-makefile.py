@@ -371,7 +371,6 @@ def define_wc_files(mfInfo):
   wc_comp_flags_info = CompFlagsInfo(prefix="wc", inc_dir="$(WC_INC)", c_flags="$(WC_CFLAGS)", cxx_flags="$(WC_CXXFLAGS)")
   wc_dirs = [
     './WebCore/bindings/js',
-#    './WebCore/bridge/win',
     './WebCore/css',
     './WebCore/DerivedSources/WebCore', 
     './WebCore/dom', 
@@ -403,11 +402,11 @@ def define_wc_files(mfInfo):
     './WebCore/platform/network/gdk',
     './WebCore/rendering',
     './WebCore/xml',
-    './WebKitTools/GdkLauncher']
+    './WebKitTools/GdkLauncher',
+    './WebKitTools/DumpRenderTree/DumpRenderTree.gdkproj']
   mfInfo.define_files_multiple(wc_dirs, wc_comp_flags_info)
 
-# gdklauncher target is made of these:
-gdklauncher_files = [
+webcore_common_files = [
   ['./JavaScriptCore/DerivedSources/JavaScriptCore', ['chartables.c']],
   ['./JavaScriptCore/bindings', ['testbindings.cpp', 'testqtbindings.cpp']],
   ['./JavaScriptCore/bindings/c', []],
@@ -441,15 +440,29 @@ gdklauncher_files = [
   ['./WebCore/platform/image-decoders/xbm', []],
   ['./WebCore/platform/image-decoders/zlib', []],
   ['./WebCore/rendering', ['RenderFileButton.cpp', 'RenderThemeWin.cpp']],
-  ['./WebCore/xml', []],
+  ['./WebCore/xml', []]
+]
+
+# gdklauncher target is made of these:
+gdklauncher_files = webcore_common_files + [
   ['./WebKitTools/GdkLauncher', []],
 ]
 
 gdklauncher = "gdklauncher"
 
+dumprendertree_files = webcore_common_files + [
+  ['./WebKitTools/DumpRenderTree/DumpRenderTree.gdkproj', []],
+]
+
+dumprendertree = "dumprendertree"
+
 def define_gdklauncher_target(mfInfo):
   mfInfo.define_target(gdklauncher, ld_flags="$(WC_LDFLAGS)")
   mfInfo.target_add_files_multiple(gdklauncher, gdklauncher_files)
+
+def define_dumprendertree_target(mfInfo):
+  mfInfo.define_target(dumprendertree, ld_flags="$(WC_LDFLAGS)")
+  mfInfo.target_add_files_multiple(dumprendertree, dumprendertree_files)
 
 def gen_makefile(prelude_txt, makefile_name):
   mfInfo = MakefileInfo()
@@ -457,6 +470,7 @@ def gen_makefile(prelude_txt, makefile_name):
   define_wc_files(mfInfo)
   define_testkjs_target(mfInfo)
   define_gdklauncher_target(mfInfo)
+  define_dumprendertree_target(mfInfo)
   txt = mfInfo.get_makefile_as_txt()
   makefile_txt = prelude_txt + txt + makefile_common_postlude
   #print makefile_txt
