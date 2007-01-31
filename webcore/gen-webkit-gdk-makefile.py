@@ -470,7 +470,7 @@ def gen_makefile(prelude_txt, makefile_name):
   define_wc_files(mfInfo)
   define_testkjs_target(mfInfo)
   define_gdklauncher_target(mfInfo)
-  define_dumprendertree_target(mfInfo)
+  #define_dumprendertree_target(mfInfo)
   txt = mfInfo.get_makefile_as_txt()
   makefile_txt = prelude_txt + txt + makefile_common_postlude
   #print makefile_txt
