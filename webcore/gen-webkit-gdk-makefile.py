@@ -403,7 +403,8 @@ def define_wc_files(mfInfo):
     './WebCore/rendering',
     './WebCore/xml',
     './WebKitTools/GdkLauncher',
-    './WebKitTools/DumpRenderTree/DumpRenderTree.gdkproj']
+#    './WebKitTools/DumpRenderTree/DumpRenderTree.gdkproj',
+]
   mfInfo.define_files_multiple(wc_dirs, wc_comp_flags_info)
 
 webcore_common_files = [

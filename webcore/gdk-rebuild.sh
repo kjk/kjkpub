@@ -1,4 +1,6 @@
 #!/bin/sh
+pushd .
+cd WebKitTools/Scripts
 ./regenerate-makefiles
 cd ../../JavaScriptCore
 make clean
@@ -10,3 +12,4 @@ make
 cd ../../../WebKitTools/GdkLauncher
 make clean
 make
+popd
