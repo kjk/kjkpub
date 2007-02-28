@@ -47,21 +47,25 @@ JSC_DIR=%s
 WC_DIR=%s
 
 # cpp definition used for all code (javascriptcore and webcore)
-DEFS_COMMON=-D_THREAD_SAFE -DHAVE_FUNC_ISNAN
+#TODO: do I need -D_THREAD_SAFE and -DHAVE_FUNC_ISNAN?
+DEFS_COMMON=
 
 # include directories needed when compiling JavaScriptCore
 JSC_INC=-I$(JSC_DIR) -I$(JSC_DIR)/wtf -I$(JSC_DIR)/kjs -I$(JSC_DIR)/pcre -I$(JSC_DIR)/bindings -I$(JSC_DIR)/bindings/c -I$(JSC_DIR)/DerivedSources/JavaScriptCore
 
 # C/C++ flags common for all release targets
-COMMON_REL_C_FLAGS=-g -Os -Wall -fno-strict-aliasing -fPIC -DPIC -pthread -DNDEBUG -fomit-frame-pointer
+# TODO: should also add -Wundef but we don't define __APPLE__ and it produces a lot of warnings
+COMMON_REL_C_FLAGS=-pipe -Wno-trigraphs -O2 -fmessage-length=0  -g -O2 -Wall -W -Wcast-align -Wchar-subscripts -Wformat-security -Wmissing-format-attribute -Wpointer-arith -Wwrite-strings -Wno-format-y2k -Wno-unused-parameter -DNDEBUG
 # C/C++ flags common for all debug targets
-COMMON_DBG_C_FLAGS=-g -O0 -Wall -fno-strict-aliasing -fPIC -DPIC -pthread
+COMMON_DBG_C_FLAGS=-pipe -Wno-trigraphs -O0 -fmessage-length=0 -g -O0 -Wall -W -Wcast-align -Wchar-subscripts -Wformat-security -Wmissing-format-attribute -Wpointer-arith -Wwrite-strings -Wno-format-y2k -Wno-unused-parameter
+
+JSC_COMMON_CXXFLAGS=-Wnon-virtual-dtor -fvisibility-inlines-hidden -fno-threadsafe-statics -fno-exceptions -fno-rtti 
 
 JSC_REL_CFLAGS=$(COMMON_REL_C_FLAGS)
-JSC_REL_CXXFLAGS=$(COMMON_REL_C_FLAGS) -fno-rtti -fno-exceptions
+JSC_REL_CXXFLAGS=$(COMMON_REL_C_FLAGS) $(JSC_COMMON_CXXFLAGS)
 
 JSC_DBG_CFLAGS=$(COMMON_DBG_C_FLAGS)
-JSC_DBG_CXXFLAGS=$(COMMON_DBG_C_FLAGS) -fno-rtti -fno-exceptions
+JSC_DBG_CXXFLAGS=$(COMMON_DBG_C_FLAGS) $(JSC_COMMON_CXXFLAGS)
 
 WC_INC=-I$(JSC_DIR) -I$(WC_DIR) -I$(WC_DIR)/include\
  -I$(WC_DIR)/bindings/js\
@@ -70,6 +74,7 @@ WC_INC=-I$(JSC_DIR) -I$(WC_DIR) -I$(WC_DIR)/include\
  -I$(WC_DIR)/DerivedSources/WebCore\
  -I$(WC_DIR)/dom\
  -I$(WC_DIR)/editing\
+ -I$(WC_DIR)/ForwardingHeaders/kjs\
  -I$(WC_DIR)/history\
  -I$(WC_DIR)/html\
  -I$(WC_DIR)/loader\
@@ -91,8 +96,9 @@ WC_INC=-I$(JSC_DIR) -I$(WC_DIR) -I$(WC_DIR)/include\
  -I$(WC_DIR)/rendering\
  -I$(WC_DIR)/xml
 
-WC_COMMON_C_FLAGS=-DLINUX -DUSE_CONSERVATIVE_GC=0 -DBUILDING_CAIRO__ -DBUILDING_GDK__ %s
-WC_COMMON_CXX_FLAGS=-fno-rtti -fno-exceptions `pkg-config --cflags freetype2` `pkg-config --cflags fontconfig` `pkg-config --cflags gtk+-2.0` `xml2-config --cflags` %s
+# TODO: do I need -DUSE_CONSERVATIVE_GC=0 and -DLINUX?
+WC_COMMON_C_FLAGS=-DBUILDING_CAIRO__ -DBUILDING_GDK__ %s
+WC_COMMON_CXX_FLAGS=-Wnon-virtual-dtor -fvisibility-inlines-hidden -fno-threadsafe-statics -fno-exceptions -fno-rtti `pkg-config --cflags freetype2` `pkg-config --cflags fontconfig` `pkg-config --cflags gtk+-2.0` `xml2-config --cflags` `curl-config --cflags` %s
 
 WC_REL_CFLAGS=$(COMMON_REL_C_FLAGS) $(WC_COMMON_C_FLAGS)
 WC_REL_CXXFLAGS=$(COMMON_REL_C_FLAGS) $(WC_COMMON_C_FLAGS) $(WC_COMMON_CXX_FLAGS)
@@ -115,11 +121,11 @@ def gen_makefile_prelude(xpath_support=True, xslt_support=True):
   defines = ""
   libs = ""
   if xpath_support:
-    defines += " -DXPATH_SUPPORT=1"  
+    defines += " -DENABLE_XPATH=1"  
   if xslt_support:
     c_flags = "`xslt-config --cflags`"
     libs = "`xslt-config --libs`"
-    defines += " -DXSLT_SUPPORT=1"
+    defines += " -DENABLE_XSLT=1"
   return makefile_prelude_template % (JSC_PATH, WC_PATH, defines, c_flags, libs)
 
 obj_dir_rule_txt = """
@@ -317,7 +323,8 @@ class MakefileInfo:
     target = self.targets[target_name]
     obj_list_name = get_target_object_list_name(target_name)
     txt = "$(BIN_DIR)/%s: $(%s)\n" % (target_name, obj_list_name)
-    txt += "	$(CXX) -o $@ $(%s) %s -pthread\n" % (obj_list_name, target.ld_flags)
+    # TODO: do I need -pthread as well?
+    txt += "	$(CXX) -o $@ $(%s) %s\n" % (obj_list_name, target.ld_flags)
     return txt
 
   def get_target_object_list(self, target_name):
@@ -357,7 +364,7 @@ def define_jsc_files(mfInfo):
 testkjs_files = [
   ['./JavaScriptCore/wtf', []],
   ['./JavaScriptCore/kjs', []],
-  ['./JavaScriptCore/pcre', ['ucptable.c', 'dftables.c']],
+  ['./JavaScriptCore/pcre', ['ucptable.c', 'dftables.c', 'pcre_globals.c']],
   ['./JavaScriptCore/DerivedSources/JavaScriptCore', ['chartables.c']],
   ['./JavaScriptCore/bindings', ['testbindings.cpp', 'testqtbindings.cpp']],
   ['./JavaScriptCore/bindings/c', []]]
@@ -412,7 +419,7 @@ webcore_common_files = [
   ['./JavaScriptCore/bindings', ['testbindings.cpp', 'testqtbindings.cpp']],
   ['./JavaScriptCore/bindings/c', []],
   ['./JavaScriptCore/kjs', ['testkjs.cpp']],
-  ['./JavaScriptCore/pcre', ['ucptable.c', 'dftables.c']],
+  ['./JavaScriptCore/pcre', ['ucptable.c', 'dftables.c', 'pcre_globals.c']],
   ['./JavaScriptCore/wtf', []],
   ['./WebCore/DerivedSources/WebCore', ['CSSPropertyNames.c', 'CSSValueKeywords.c', 'CharsetData.cpp', 'DocTypeStrings.cpp', 'JSHTMLInputElementBaseTable.cpp', 'JSSVGZoomEvent.cpp', 'JSSVGAElement.cpp', 'JSSVGAngle.cpp', 'JSSVGAnimatedAngle.cpp', 'JSSVGAnimateColorElement.cpp', 'JSSVGAnimateElement.cpp', 'JSSVGAnimateTransformElement.cpp', 'JSSVGAnimatedBoolean.cpp', 'JSSVGAnimatedEnumeration.cpp', 'JSSVGAnimatedInteger.cpp', 'JSSVGAnimatedLength.cpp', 'JSSVGAnimatedLengthList.cpp', 'JSSVGAnimatedNumber.cpp', 'JSSVGAnimatedNumberList.cpp', 'JSSVGAnimatedPoints.cpp', 'JSSVGAnimatedPreserveAspectRatio.cpp', 'JSSVGAnimatedRect.cpp', 'JSSVGAnimatedString.cpp', 'JSSVGAnimatedTransformList.cpp', 'JSSVGAnimationElement.cpp', 'JSSVGColor.cpp', 'JSSVGCircleElement.cpp', 'JSSVGClipPathElement.cpp', 'JSSVGComponentTransferFunctionElement.cpp', 'JSSVGCursorElement.cpp', 'JSSVGDefsElement.cpp', 'JSSVGDescElement.cpp', 'JSSVGDocument.cpp', 'JSSVGLength.cpp', 'JSSVGMatrix.cpp', 'JSSVGMetadataElement.cpp', 'JSSVGPathElement.cpp', 'JSSVGPathSeg.cpp', 'JSSVGPathSegArcAbs.cpp', 'JSSVGPathSegArcRel.cpp', 'JSSVGPathSegClosePath.cpp', 'JSSVGPathSegCurvetoCubicAbs.cpp', 'JSSVGPathSegCurvetoCubicRel.cpp', 'JSSVGPathSegCurvetoCubicSmoothAbs.cpp', 'JSSVGPathSegCurvetoCubicSmoothRel.cpp', 'JSSVGPathSegCurvetoQuadraticAbs.cpp', 'JSSVGPathSegCurvetoQuadraticRel.cpp', 'JSSVGPathSegCurvetoQuadraticSmoothAbs.cpp', 'JSSVGPathSegCurvetoQuadraticSmoothRel.cpp', 'JSSVGPathSegLinetoAbs.cpp', 'JSSVGPathSegLinetoHorizontalAbs.cpp', 'JSSVGPathSegLinetoHorizontalRel.cpp', 'JSSVGPathSegLinetoRel.cpp', 'JSSVGPathSegLinetoVerticalAbs.cpp', 'JSSVGPathSegLinetoVerticalRel.cpp', 'JSSVGPathSegMovetoAbs.cpp', 'JSSVGPathSegMovetoRel.cpp', 'JSSVGNumberList.cpp', 'JSSVGPaint.cpp', 'JSSVGPathSegList.cpp', 'JSSVGPatternElement.cpp', 'JSSVGPointList.cpp', 'JSSVGPolygonElement.cpp', 'JSSVGPolylineElement.cpp', 'JSSVGRadialGradientElement.cpp', 'JSSVGRectElement.cpp', 'JSSVGRenderingIntent.cpp', 'JSSVGSetElement.cpp', 'JSSVGScriptElement.cpp', 'JSSVGStyleElement.cpp', 'JSSVGSwitchElement.cpp', 'JSSVGStopElement.cpp', 'JSSVGStringList.cpp', 'JSSVGSymbolElement.cpp', 'JSSVGTRefElement.cpp', 'JSSVGTSpanElement.cpp', 'JSSVGTextElement.cpp', 'JSSVGTextContentElement.cpp', 'JSSVGTextPositioningElement.cpp', 'JSSVGTitleElement.cpp', 'JSSVGTransform.cpp', 'JSSVGTransformList.cpp', 'JSSVGUnitTypes.cpp', 'JSSVGUseElement.cpp', 'JSSVGViewElement.cpp', 'JSSVGPointTable.cpp', 'JSSVGPreserveAspectRatio.cpp', 'JSSVGRectTable.cpp', 'JSSVGElement.cpp', 'JSSVGSVGElement.cpp', 'JSSVGEllipseElement.cpp', 'JSSVGFEBlendElement.cpp', 'JSSVGFEColorMatrixElement.cpp', 'JSSVGFEComponentTransferElement.cpp', 'JSSVGFECompositeElement.cpp', 'JSSVGFEDiffuseLightingElement.cpp', 'JSSVGFEDisplacementMapElement.cpp', 'JSSVGFEDistantLightElement.cpp', 'JSSVGFEFloodElement.cpp', 'JSSVGFEFuncAElement.cpp', 'JSSVGFEFuncBElement.cpp', 'JSSVGFEFuncGElement.cpp', 'JSSVGFEFuncRElement.cpp', 'JSSVGFEGaussianBlurElement.cpp', 'JSSVGFEImageElement.cpp', 'JSSVGFEMergeElement.cpp', 'JSSVGFEMergeNodeElement.cpp', 'JSSVGFEOffsetElement.cpp', 'JSSVGFEPointLightElement.cpp', 'JSSVGFESpecularLightingElement.cpp', 'JSSVGFESpotLightElement.cpp', 'JSSVGFETileElement.cpp', 'JSSVGFETurbulenceElement.cpp', 'JSSVGFilterElement.cpp', 'JSSVGForeignObjectElement.cpp', 'JSSVGGElement.cpp', 'JSSVGGradientElement.cpp', 'JSSVGImageElement.cpp', 'JSSVGLengthList.cpp', 'JSSVGLineElement.cpp', 'JSSVGLinearGradientElement.cpp', 'JSSVGMaskElement.cpp', 'JSSVGMarkerElement.cpp', 'SVGElementFactory.cpp', 'SVGNames.cpp', 'tokenizer.cpp']],
   ['./WebCore/bindings/js', []],
@@ -427,7 +434,7 @@ webcore_common_files = [
   ['./WebCore/page', []],
   ['./WebCore/page/gdk', []],
   ['./WebCore/platform', ['CharsetNames.cpp']],
-  ['./WebCore/platform/gdk', ['ScreenGdk.cpp']],
+  ['./WebCore/platform/gdk', []],
   ['./WebCore/platform/graphics', ['ImageBuffer.cpp']],
   ['./WebCore/platform/graphics/cairo', []],
   ['./WebCore/platform/graphics/gdk', []],
