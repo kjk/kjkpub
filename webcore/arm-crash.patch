@@ -1,0 +1,44 @@
+Index: WebCore/platform/AtomicString.cpp
+===================================================================
+--- WebCore/platform/AtomicString.cpp	(revision 19905)
++++ WebCore/platform/AtomicString.cpp	(working copy)
+@@ -95,6 +95,13 @@
+     unsigned length;
+ };
+ 
++static inline bool aligned4(uintptr_t addr)
++{
++    if (addr & 3)
++        return false;
++    return true;
++}
++
+ struct UCharBufferTranslator {
+     static unsigned hash(const UCharBuffer& buf)
+     {
+@@ -107,7 +114,24 @@
+         unsigned bufLength = buf.length;
+         if (strLength != bufLength)
+             return false;
+-        
++
++#if PLATFORM(ARM)
++        /* on some ARM architectures, 4-bytes-at-a-time memory access on addresses
++           that are not 4-byte aligned doesn't work (crashes) so if either string
++           is not 4-byte aligned, do compare 2-bytes-at-a-time */
++        if (!aligned4(reinterpret_cast<uintptr_t>(str->characters())) ||
++            !aligned4(reinterpret_cast<uintptr_t>(buf.s))) {
++            const uint16_t* strChars = reinterpret_cast<const uint16_t*>(str->characters());
++            const uint16_t* bufChars = reinterpret_cast<const uint16_t*>(buf.s);
++
++            for (unsigned i = 0; i != strLength; ++i) {
++                if (*strChars++ != *bufChars++)
++                    return false;
++            }
++
++            return true;
++        }
++#endif
+         const uint32_t* strChars = reinterpret_cast<const uint32_t*>(str->characters());
+         const uint32_t* bufChars = reinterpret_cast<const uint32_t*>(buf.s);
+         
