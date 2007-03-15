@@ -1,0 +1,416 @@
+Index: WebCore/platform/network/ResourceHandleInternal.h
+===================================================================
+--- WebCore/platform/network/ResourceHandleInternal.h	(revision 20217)
++++ WebCore/platform/network/ResourceHandleInternal.h	(working copy)
+@@ -91,7 +91,9 @@
+ #if USE(CURL)
+             , m_handle(0)
+             , m_url(0)
++            , m_fileName(0)
+             , m_customHeaders(0)
++            , m_customPostHeader(0)
+ #endif
+ #if PLATFORM(MAC)
+             , m_currentMacChallenge(nil)
+@@ -137,7 +139,10 @@
+ #if USE(CURL)
+         CURL* m_handle;
+         char* m_url;
++        char* m_fileName;
+         struct curl_slist* m_customHeaders;        
++        struct curl_slist* m_customPostHeader;
++        Vector<char> m_postBytes;
+ #endif
+ #if PLATFORM(MAC)
+         NSURLAuthenticationChallenge *m_currentMacChallenge;
+Index: WebCore/platform/network/gdk/ResourceHandleManager.cpp
+===================================================================
+--- WebCore/platform/network/gdk/ResourceHandleManager.cpp	(revision 20217)
++++ WebCore/platform/network/gdk/ResourceHandleManager.cpp	(working copy)
+@@ -32,21 +32,58 @@
+ #include "NotImplementedGdk.h"
+ #include "ResourceHandle.h"
+ #include "ResourceHandleInternal.h"
++#include <wtf/Vector.h>
+ 
+ namespace WebCore {
+ 
+ const int selectTimeoutMS = 5;
+ const double pollTimeSeconds = 0.05;
+ 
++static char *StrConcat(const char* str1, const char* str2=NULL, const char* str3=NULL)
++{
++    int strLen, strLen1 = 0, strLen2 = 0, strLen3 = 0;
++    if (str1)
++        strLen1 = strlen(str1);
++    if (str2)
++        strLen2 = strlen(str2);
++    if (str3)
++        strLen3 = strlen(str3);
++
++    strLen = strLen1 + strLen2 + strLen3;
++
++    if (0 == strLen)
++        return NULL;
++    char *str = (char*)malloc(strLen + 1);
++    char *tmp = str;
++    if (str1) {
++        memcpy(tmp, str1, strLen1);
++        tmp += strLen1;
++    }
++    if (str2) {
++        memcpy(tmp, str2, strLen2);
++        tmp += strLen2;
++    }
++    if (str3) {
++        memcpy(tmp, str3, strLen3);
++        tmp += strLen3;
++    }
++
++    *tmp = 0;
++    return str;
++}
++
+ ResourceHandleManager::ResourceHandleManager()
+     : m_downloadTimer(this, &ResourceHandleManager::downloadTimerCallback)
+     , m_cookieJarFileName(0)
++    , m_resourceHandleListHead(0)
++    , m_insideCurl(false)
+ {
++    printf("ResourceHandleManager::ResourceHandleManager()\n");
+     curl_global_init(CURL_GLOBAL_ALL);
+     m_curlMultiHandle = curl_multi_init();
+-    m_curlShareHandle = curl_share_init();
+-    curl_share_setopt(m_curlShareHandle, CURLSHOPT_SHARE, CURL_LOCK_DATA_COOKIE);
+-    curl_share_setopt(m_curlShareHandle, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
++    //m_curlShareHandle = curl_share_init();
++    //curl_share_setopt(m_curlShareHandle, CURLSHOPT_SHARE, CURL_LOCK_DATA_COOKIE);
++    //curl_share_setopt(m_curlShareHandle, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
+ }
+ 
+ void ResourceHandleManager::setCookieJarFileName(const char* cookieJarFileName)
+@@ -83,14 +120,16 @@
+ 
+ void ResourceHandleManager::downloadTimerCallback(Timer<ResourceHandleManager>* timer)
+ {
++    startScheduledJobs();
++    m_insideCurl = true;
++
+     fd_set fdread;
++    FD_ZERO(&fdread);
+     fd_set fdwrite;
++    FD_ZERO(&fdwrite);
+     fd_set fdexcep;
++    FD_ZERO(&fdexcep);
+     int maxfd = 0;
+-
+-    FD_ZERO(&fdread);
+-    FD_ZERO(&fdwrite);
+-    FD_ZERO(&fdexcep);
+     curl_multi_fdset(m_curlMultiHandle, &fdread, &fdwrite, &fdexcep, &maxfd);
+ 
+     struct timeval timeout;
+@@ -126,13 +165,14 @@
+         // find the node which has same d->m_handle as completed transfer
+         CURL* handle = msg->easy_handle;
+         ASSERT(handle);
+-        ResourceHandle* job;
+-        curl_easy_getinfo(handle, CURLINFO_PRIVATE, &job);
++        ResourceHandle* job = 0;
++        CURLcode err = curl_easy_getinfo(handle, CURLINFO_PRIVATE, &job);
++        ASSERT(CURLE_OK == err);
+         ASSERT(job);
+         if (!job)
+             continue;
+-
+         ResourceHandleInternal* d = job->getInternal();
++        ASSERT(d->m_handle == handle);
+         if (CURLE_OK == msg->data.result) {
+             if (d->client())
+                 d->client()->didFinishLoading(job);
+@@ -149,6 +189,9 @@
+         removeFromCurl(job);
+     }
+ 
++    startScheduledJobs(); // new jobs might have been added in the meantime
++    m_insideCurl = false;
++
+     if (!m_downloadTimer.isActive() && (runningHandles > 0))
+         m_downloadTimer.startOneShot(pollTimeSeconds);
+ }
+@@ -160,6 +203,7 @@
+     if (!d->m_handle)
+         return;
+     curl_multi_remove_handle(m_curlMultiHandle, d->m_handle);
++    printf("ResourceHandleManager::removeFromCurl() h=%p\n", d->m_handle);
+     curl_easy_cleanup(d->m_handle);
+     d->m_handle = 0;
+ }
+@@ -169,16 +213,115 @@
+     notImplementedGdk();
+ }
+ 
+-void ResourceHandleManager::setupPOST(ResourceHandle*)
++void ResourceHandleManager::setupPOST(ResourceHandle* job)
+ {
+-    notImplementedGdk();
++    ResourceHandleInternal* d = job->getInternal();
++    curl_easy_setopt(d->m_handle, CURLOPT_POST, TRUE);
++
++    // disable Expect: 100-continue
++    struct curl_slist *slist = 0;
++    slist = curl_slist_append(slist,"Expect:");
++    curl_easy_setopt(d->m_handle, CURLOPT_HTTPHEADER, slist);
++    d->m_customPostHeader = slist;
++
++    job->postData()->flatten(d->m_postBytes);
++    if (d->m_postBytes.size() != 0) {
++        curl_easy_setopt(d->m_handle, CURLOPT_POSTFIELDS,
++        d->m_postBytes.data());
++        curl_easy_setopt(d->m_handle, CURLOPT_POSTFIELDSIZE,
++        d->m_postBytes.size());
++   }
++
++   Vector<FormDataElement> elements = job->postData()->elements();
++   size_t size = elements.size();
++   struct curl_httppost* lastItem = 0;
++   struct curl_httppost* post = 0;
++   for (size_t i =0; i < size; i++) {
++       if (elements[i].m_type != FormDataElement::encodedFile)
++           continue;
++       CString cstring =  elements[i].m_filename.utf8();
++       d->m_fileName = strdup(cstring.data());
++
++       /* Fill in the file upload field */
++       curl_formadd(&post,
++                     &lastItem,
++                     CURLFORM_COPYNAME, "sendfile",
++                     CURLFORM_FILE, d->m_fileName,
++                     CURLFORM_END);
++
++        /* Fill in the filename field */
++        curl_formadd(&post,
++                     &lastItem,
++                     CURLFORM_COPYNAME, "filename",
++                     CURLFORM_COPYCONTENTS, d->m_fileName,
++                     CURLFORM_END);
++
++        /* Fill in the submit field too, even if this is rarely needed */
++        curl_formadd(&post,
++                     &lastItem,
++                     CURLFORM_COPYNAME, "submit",
++                     CURLFORM_COPYCONTENTS, "send",
++                     CURLFORM_END);
++   }
++
++   curl_easy_setopt(d->m_handle, CURLOPT_HTTPPOST, post);
+ }
+ 
+ void ResourceHandleManager::add(ResourceHandle* job)
+ {
++    printf("ResourceHandleManager::add() %s\n", job->url().url().ascii());
++    // we can be called from within curl, so to avoid re-entrancy issues
++    // schedule this job to be added the next time we enter curl download loop
++    if (true) {
++        m_resourceHandleListHead = new ResourceHandleList(job, m_resourceHandleListHead);
++    } else {
++        startScheduledJobs();
++        startJob(job);
++    }
++    if (!m_downloadTimer.isActive()) {
++        printf("  starting download timer\n");
++        m_downloadTimer.startOneShot(pollTimeSeconds);
++    }
++}
++
++bool ResourceHandleManager::removeScheduledJob(ResourceHandle* job)
++{
++    ResourceHandleList* node = m_resourceHandleListHead;
++    while (node) {
++        ResourceHandleList* next = node->next();
++        if (job == node->job()) {
++            printf("ResourceHandleManager::removeScheduledJob() h=%p\n", job->getInternal()->m_handle);
++            node->setRemoved(true);
++            return true;
++            node = next;
++        }
++    }
++    return false;
++}
++
++void ResourceHandleManager::startScheduledJobs()
++{
++    ResourceHandleList* node = m_resourceHandleListHead;
++    while (node) {
++        ResourceHandleList* next = node->next();
++        if (!node->removed())
++            startJob(node->job());
++        delete node;
++        node = next;
++    }
++    m_resourceHandleListHead = 0;
++}
++
++void ResourceHandleManager::startJob(ResourceHandle* job)
++{
+     ResourceHandleInternal* d = job->getInternal();
+     DeprecatedString url = job->url().url();
+     d->m_handle = curl_easy_init();
++    printf("ResourceHandleManager::startJob()       h=%p\n", d->m_handle);
++#ifndef NDEBUG
++    if (getenv("DEBUG_CURL"))
++        curl_easy_setopt(d->m_handle, CURLOPT_VERBOSE, 1);
++#endif
+     curl_easy_setopt(d->m_handle, CURLOPT_PRIVATE, job);
+     curl_easy_setopt(d->m_handle, CURLOPT_ERRORBUFFER, m_curlErrorBuffer);
+     curl_easy_setopt(d->m_handle, CURLOPT_WRITEFUNCTION, writeCallback);
+@@ -188,7 +331,9 @@
+     curl_easy_setopt(d->m_handle, CURLOPT_FOLLOWLOCATION, 1);
+     curl_easy_setopt(d->m_handle, CURLOPT_MAXREDIRS, 10);
+     curl_easy_setopt(d->m_handle, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
+-    curl_easy_setopt(d->m_handle, CURLOPT_SHARE, m_curlShareHandle);
++    //curl_easy_setopt(d->m_handle, CURLOPT_SHARE, m_curlShareHandle);
++    //curl_easy_setopt(d->m_handle, CURLOPT_DNS_USE_GLOBAL_CACHE, 1);
++    //curl_easy_setopt(d->m_handle, CURLOPT_DNS_CACHE_TIMEOUT, 60*5); // 5 minutes
+     // enable gzip and deflate through Accept-Encoding:
+     curl_easy_setopt(d->m_handle, CURLOPT_ENCODING, "");
+ 
+@@ -197,21 +342,51 @@
+     d->m_url = strdup(url.ascii());
+     curl_easy_setopt(d->m_handle, CURLOPT_URL, d->m_url);
+ 
++#if 0
+     if (m_cookieJarFileName) {
+         curl_easy_setopt(d->m_handle, CURLOPT_COOKIEFILE, m_cookieJarFileName);
+         curl_easy_setopt(d->m_handle, CURLOPT_COOKIEJAR, m_cookieJarFileName);
+     }
++#endif
+ 
+     if (job->requestHeaders().size() > 0) {
+         struct curl_slist* headers = 0;
+         HTTPHeaderMap customHeaders = job->requestHeaders();
+         HTTPHeaderMap::const_iterator end = customHeaders.end();
++        String separator(": ");
+         for (HTTPHeaderMap::const_iterator it = customHeaders.begin(); it != end; ++it) {
+             String key = it->first;
+             String value = it->second;
+-            String headerString = key + ": " + value;
++#if 1
++            //printf("key: %s\n", key.latin1().data());
++            //printf("value: %s\n", value.latin1().data());
++            char *headerAscii = StrConcat(key.latin1().data(), ": ", value.latin1().data());
++            //printf("headerAscii: %s\n", headerAscii);
++            headers = curl_slist_append(headers, headerAscii);
++            //free(headerAscii);
++#endif
++#if 0
++            printf("key: %s\n", key.latin1().data());
++            printf("value: %s\n", value.latin1().data());
++            String headerString(key);
++//            headerString.append(String(": "));
++            //headerString.append(value);
+             const char* header = headerString.latin1().data();
++            printf("header: %s\n", header);
+             headers = curl_slist_append(headers, header);
++#endif
++#if 0
++            printf("key: %s\n", key.latin1().data());
++            printf("value: %s\n", value.latin1().data());
++            Vector<UChar> stringBuilder;
++            stringBuilder.append(key.characters(), key.length());
++            stringBuilder.append(separator.characters(), separator.length());
++            stringBuilder.append(value.characters(), value.length());
++            String headerString(stringBuilder);
++            const char* header = headerString.latin1().data();
++            printf("header: %s\n", header);
++            headers = curl_slist_append(headers, header);
++#endif
+         }
+         curl_easy_setopt(d->m_handle, CURLOPT_HTTPHEADER, headers);
+         d->m_customHeaders = headers;
+@@ -237,13 +412,13 @@
+         job->cancel();
+         return;
+     }
+-
+-    if (!m_downloadTimer.isActive())
+-        m_downloadTimer.startOneShot(pollTimeSeconds);
+ }
+ 
+ void ResourceHandleManager::cancel(ResourceHandle* job)
+ {
++    printf("ResourceHandleManager::cancel %s\n", job->url().url().ascii());
++    if (removeScheduledJob(job))
++        return;
+     removeFromCurl(job);
+     // FIXME: report an error?
+ }
+Index: WebCore/platform/network/gdk/ResourceHandleManager.h
+===================================================================
+--- WebCore/platform/network/gdk/ResourceHandleManager.h	(revision 20217)
++++ WebCore/platform/network/gdk/ResourceHandleManager.h	(working copy)
+@@ -35,6 +35,25 @@
+ 
+ namespace WebCore {
+ 
++class ResourceHandleList
++{
++public:
++    ResourceHandleList(ResourceHandle* job, ResourceHandleList* next)
++        : m_job(job)
++        , m_next(next)
++        , m_removed(false)
++    {}
++    ResourceHandleList* next() const { return m_next; }
++    ResourceHandle* job() const { return m_job; }
++    void setRemoved(bool removed) { m_removed = removed; }
++    bool removed() const { return m_removed; }
++
++private:
++    ResourceHandle* m_job;
++    ResourceHandleList* m_next;
++    bool m_removed;
++};
++
+ class ResourceHandleManager {
+ public:
+     static ResourceHandleManager* sharedInstance();
+@@ -49,13 +68,17 @@
+     ResourceHandleManager();
+     void downloadTimerCallback(Timer<ResourceHandleManager>*);
+     void removeFromCurl(ResourceHandle*);
++    bool removeScheduledJob(ResourceHandle*);
++    void startJob(ResourceHandle*);
++    void startScheduledJobs();
+ 
+     Timer<ResourceHandleManager> m_downloadTimer;
+     CURLM* m_curlMultiHandle; // FIXME: never freed
+-    CURLSH* m_curlShareHandle; // FIXME: never freed
++    //CURLSH* m_curlShareHandle; // FIXME: never freed
+     char* m_cookieJarFileName; // FIXME: never freed
+-
+     char m_curlErrorBuffer[CURL_ERROR_SIZE];
++    ResourceHandleList* m_resourceHandleListHead;
++    bool m_insideCurl;
+ };
+ 
+ }
+Index: WebCore/platform/network/gdk/ResourceHandleCurl.cpp
+===================================================================
+--- WebCore/platform/network/gdk/ResourceHandleCurl.cpp	(revision 20217)
++++ WebCore/platform/network/gdk/ResourceHandleCurl.cpp	(working copy)
+@@ -37,10 +37,13 @@
+ 
+ ResourceHandleInternal::~ResourceHandleInternal()
+ {
++    printf("ResourceHandleInternal::~ResourceHandleInternal %p\n", m_handle);
+     free(m_url);
+-
++    free(m_fileName);
+     if (m_customHeaders)
+         curl_slist_free_all(m_customHeaders);
++    if (m_customPostHeader)
++        curl_slist_free_all(m_customPostHeader);
+ }
+ 
+ ResourceHandle::~ResourceHandle()
