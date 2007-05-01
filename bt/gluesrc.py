@@ -67,9 +67,12 @@ def build_src_info():
 
 
 class HeadersInfo:
-    (SEEN, NOT_SEEN) = range(2)
-    def __init__(self):
-        self.headers = {}
+    def __init__(self, header_files_info):
+        self.includes = {}
+
+        for hdr_dir_info in header_files_info:
+            self.add_dir(hdr_dir_info)
+
     def add_dir(self, hdr_dir_info):
         dir = hdr_dir_info[0]
         files = hdr_dir_info[1:]
@@ -83,39 +86,39 @@ class HeadersInfo:
             file_path = os.path.join(dir, file)
             if not os.path.exists(file_path):
                 print "Error in header_files in gluesrcdef.py. File '%s' doesn't exist" % file_path
-            assert file_path not in self.headers
-            self.headers[file] = [file_path, NOT_SEEN]
-    def known(self, header_name):
-        file = convert_path_name(header_name)
-        return self in self.headers
+            assert file not in self.includes
+            assert file_path not in self.includes.values() # TODO: slow for large lists
+            self.includes[file] = file_path
+
+    def known(self, include_name):
+        return include_name in self.includes
+
+    def to_replace(self, include_name):
+        return self.known(include_name)
+
+    def include_path_from_name(self, include_name):
+        return self.includes[include_name]
 
 def build_hdr_info():
     try:
-        header_files = gluesrcdef.header_files
+        header_files_info = gluesrcdef.header_files
     except:
         print "Error in gluesrcdef.py: header_files not defines"
         sys.exit(1)
-    hdr_info = HeadersInfo()
-    for hdr_dir_info in header_files:
-        hdr_info.add_dir(hdr_dir_info)
-    return hdr_info
+    return HeadersInfo(header_files_info)
 
 def section_comment(text):
     text = " %s " % text
     text = text.center(74, '*')
     return "/*%s*/\n" % text
 
-def include_path_from_name(include_name):
-    return include_name
-
-def known_include(include_name):
-    return False
-
 # TODO: better name than GlueMaker. SourceCombinator?
 class GlueMaker:
-    def __init__(self, out_file_path):
+    def __init__(self, out_file_path, sources, headers):
         self.out_file_path = out_file_path
         self.fo = None
+        self.sources = sources
+        self.headers = headers
         self.seen_headers = {}
 
     def get_fo(self):
@@ -127,26 +130,45 @@ class GlueMaker:
         assert self.fo
         self.fo.close()
 
-    def writeln(self,txt):
+    def writeln(self, txt):
         fo = self.get_fo()
         fo.write(txt + "\n")
 
-    def write(self,txt):
+    def write(self, txt):
         fo = self.get_fo()
         fo.write(txt)
+
+    def header_seen(self, include_name):
+        return include_name in self.seen_headers
+
+    def mark_header_as_seen(self, include_name):
+        assert not self.header_seen(include_name)
+        self.seen_headers[include_name] = True
+
+    # TODO: the worst name in the universe?
+    def doit(self):
+        for file in self.sources.keys():
+            self.copy_file(file)
+        self.finish()
 
     def copy_file(self,file_path):
         self.writeln(section_comment("Begin file '%s'" % file_path))
         for line in file(file_path):
             include_name = include_from_line(line)
-            if known_include(include_name) and not seen_include(include_name):
-                include_path = include_path_from_name(include_name)
+            if not include_name:
+                self.write(line)
+                continue
+            if self.header_seen(include_name):
+                continue
+            if self.headers.to_replace(include_name):
+                include_path = self.headers.include_path_from_name(include_name)
                 self.writeln(section_comment("Include %s in the middle of %s" % (include_name, file_path)))
                 self.copy_file(include_path)
                 self.writeln(section_comment("Continuing where we left off in %s" % file_path))
             else:
                 self.write(line)
-        self.writeln(section_comment("End of     '%s'" % file_path))
+            self.mark_header_as_seen(include_name)
+        self.writeln(section_comment("End of '%s'" % file_path))
 
 def main():
     try:
@@ -154,11 +176,8 @@ def main():
     except:
         print "Error in gluesrcdef.py - file_out is not defined"
         sys.exit(1)
-    sources = build_src_info()
-    maker = GlueMaker(file_out)
-    for file in sources.keys():
-        maker.copy_file(file)
-    maker.finish()
+    maker = GlueMaker(file_out, build_src_info(), build_hdr_info())
+    maker.doit()
 
 if __name__ == "__main__":
 	main()

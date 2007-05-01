@@ -5,7 +5,9 @@ def usage_and_exit():
     sys.exit(1)
 
 def is_cpp_file(file):
-    return file.endswith(".cpp")
+    for suffix in (".cpp", ".c", ".cc"):
+        if file.endswith(suffix): return True
+    return False
 
 def format_files_info(dir,files):
     path = os.path.abspath(dir)
