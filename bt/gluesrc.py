@@ -6,10 +6,10 @@
 file_out = "out.cpp"
 root_dir = r"c:\src" # or set to None
 
-# src_files and header_files is an array of tuples
+# source_files and header_files is an array of tuples
 # each tuple starts with directory that has the files (relative to root_dir
 # if root_dir is set) followed by a list of 
-src_files = [
+source_files = [
    (r"dir1", "file1.cpp", "file2.cpp", "file3.cpp")
   ,(r"dir2", "file1.cpp", "file2.cpp")
 ]
@@ -20,7 +20,7 @@ header_files = [
 """
 
 import sys, os, os.path, string, re
-try
+try:
     import gluesrcdef
 except:
     print "You need to create gluesrcdef.py which describes which source/header files to glue together"
@@ -45,9 +45,9 @@ def include_from_line(line):
 def build_src_info():
     sources = {}
     try:
-        src_files = gluesrcdef.src_files
+        src_files = gluesrcdef.source_files
     except:
-        print "Error in gluesrcdef.py: src_files not defines"
+        print "Error in gluesrcdef.py: source_files not defines"
         sys.exit(1)
     for src_dir_info in src_files:
         dir = src_dir_info[0]
@@ -117,18 +117,24 @@ class GlueMaker:
         self.out_file_path = out_file_path
         self.fo = None
         self.seen_headers = {}
+
     def get_fo(self):
         if not self.fo:
             self.fo = open(self.out_file_path, "wb")
+        return self.fo
+
     def finish(self):
         assert self.fo
         self.fo.close()
+
     def writeln(self,txt):
-        fo = get_fo()
+        fo = self.get_fo()
         fo.write(txt + "\n")
+
     def write(self,txt):
-        fo = get_fo()
+        fo = self.get_fo()
         fo.write(txt)
+
     def copy_file(self,file_path):
         self.writeln(section_comment("Begin file '%s'" % file_path))
         for line in file(file_path):
@@ -150,8 +156,8 @@ def main():
         sys.exit(1)
     sources = build_src_info()
     maker = GlueMaker(file_out)
-     for file in sources.keys():
-        copy_file(fo, file)
+    for file in sources.keys():
+        maker.copy_file(file)
     maker.finish()
 
 if __name__ == "__main__":
