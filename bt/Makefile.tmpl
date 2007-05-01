@@ -1,0 +1,58 @@
+# -*-mode: Makefile -*-
+# Template makefile for building variations of libtorrent
+# Parent makefile is supposed to set CFLAGS with the right options
+
+INCS=-I../include -I../zlib -I$(BOOST_ROOT) -I$(ASIO_INCLUDE)
+VPATH=../zlib:../src:../src/kademlia:../examples:$(BOOST_ROOT)/libs/filesystem/src:$(BOOST_ROOT)/libs/thread/src
+
+.PHONY : all clean clean-o
+
+DEFS=-DBOOST_ALL_NO_LIB
+
+CFLAGS := $(CFLAGS) -pedantic $(DEFS) $(INCS)
+
+all: simpleclient_static
+
+ZLIB_OBJS=adler32.o compress.o crc32.o deflate.o gzio.o infback.o inffast.o inflate.o inftrees.o trees.o uncompr.o zutil.o
+
+KADEMLIA_OBJS=closest_nodes.o dht_tracker.o find_data.o node.o node_id.o refresh.o routing_table.o rpc_manager.o traversal_algorithm.o
+
+BOOST_FS_OBJS=operations_posix_windows.o path_posix_windows.o convenience.o exception.o
+
+BOOST_THREAD_OBJS=condition.o exceptions.o mutex.o recursive_mutex.o thread.o xtime.o
+
+LIBOBJS=$(ZLIB_OBJS) $(BOOST_FS_OBJS) $(BOOST_THREAD_OBJS) $(KADEMLIA_OBJS) allocate_resources.o alert.o bandwidth_manager.o entry.o escape_string.o http_connection.o http_stream.o identify_client.o ip_filter.o peer_connection.o bt_peer_connection.o web_peer_connection.o instantiate_connection.o natpmp.o piece_picker.o policy.o session.o session_impl.o socks5_stream.o stat.o storage.o torrent.o torrent_handle.o torrent_info.o tracker_manager.o http_tracker_connection.o udp_tracker_connection.o sha1.o metadata_transfer.o upnp.o ut_pex.o logger.o file_pool.o lsd.o file.o 
+
+clean:
+	-rm -rf *o *so *.a simpleclient*
+
+clean-o:
+	-rm -rf *o
+
+simpleclient_static_unstripped: libtorrent_unstripped.a simple_client.o
+	g++ simple_client.o -L. -ltorrent_unstripped -Wl,-Map,simpleclient.map -lpthread -lrt -o $@
+
+#simpleclient_static_unstripped: $(LIBOBJS) simple_client.o
+#	g++ -o $@ $? -lpthread -lrt
+
+simpleclient_static: simpleclient_static_unstripped
+	cp $< $@; strip $@
+
+libtorrent.so: libtorrent.so.1.0.0
+	-ln -s $< $@
+
+libtorrent.so.1.0.0: libtorrent_unstripped.so.1.0.0
+	cp $< $@; strip $@
+
+libtorrent_unstripped.so.1.0.0: $(LIBOBJS)
+	$(CC) -shared -g -Wl,-O1 -Wl,-soname,libtorrent.so.1 -o $@ $? -ldl
+
+libtorrent_unstripped.a: $(LIBOBJS)
+	ar cr $@ $?
+	ranlib $@
+
+libtorrent.a: libtorrent_unstripped.a
+	cp $< $@; strip $@
+
+%.o: %.cpp
+	$(CC) -c $(CFLAGS) -o $@ $<
