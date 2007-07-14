@@ -9,19 +9,38 @@ from subprocess import *
 TIS_EXE = r"c:\kjk\src\tiscript\obj-rel-win\tiscript.exe"
 LUA_EXE = "lua"
 
-print "lua: "
-start = time.clock()
-output = Popen([LUA_EXE, "nbody.lua"], stdout=PIPE).communicate()[0]
-end = time.clock()
-lua_time = end - start
-print output
+def time_lua():
+  print "lua: "
+  start = time.clock()
+  output = Popen([LUA_EXE, "nbody.lua"], stdout=PIPE).communicate()[0]
+  end = time.clock()
+  print output
+  return end - start
 
-print "tiscript: "
-start = time.clock()
-output = Popen([TIS_EXE, "nbody.tis"], stdout=PIPE).communicate()[0]
-end = time.clock()
-tis_time = end - start
-print output
+def time_tiscript2():
+  print "tiscript2: "
+  start = time.clock()
+  output = Popen([TIS_EXE, "nbody2.tis"], stdout=PIPE).communicate()[0]
+  end = time.clock()
+  print output
+  return end - start
 
-print "lua time: " + str(lua_time)
-print "tis time: " + str(tis_time) + "  ration: " + str(tis_time / lua_time)
+def time_tiscript():
+  print "tiscript: "
+  start = time.clock()
+  output = Popen([TIS_EXE, "nbody.tis"], stdout=PIPE).communicate()[0]
+  end = time.clock()
+  print output
+  return end - start
+
+do_tis2 = False
+
+if do_tis2:
+  tis_time2 = time_tiscript2()
+lua_time = time_lua()
+tis_time = time_tiscript()
+
+print "lua time : " + str(lua_time)
+print "tis time : " + str(tis_time) + "  ration: " + str(tis_time / lua_time)
+if do_tis2:
+  print "tis time2: " + str(tis_time2) + "  ration: " + str(tis_time2 / lua_time)
