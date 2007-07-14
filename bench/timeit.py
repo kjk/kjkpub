@@ -33,7 +33,7 @@ def time_tiscript():
   print output
   return end - start
 
-do_tis2 = False
+do_tis2 = True
 
 if do_tis2:
   tis_time2 = time_tiscript2()
