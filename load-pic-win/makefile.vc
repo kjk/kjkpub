@@ -1,0 +1,68 @@
+NULL=
+
+BASEDIR=.
+
+BINDIR=bin
+
+OBJDIR=obj
+
+DEBUG=1
+
+CC = cl.exe
+CFLAGS = $(CFLAGS) /nologo
+CFLAGS = $(CFLAGS) /D "WIN32" /D "_WINDOWS"
+CFLAGS = $(CFLAGS) /D "_MBCS" /D "_REENTRANT" /W1
+
+!if "$(DEBUG)"=="1"
+CFLAGS = $(CFLAGS) /D "_DEBUG" /MDd /Od /Zi
+!else
+CFLAGS = $(CFLAGS) /D "NDEBUG" /MD /Zi
+!endif
+
+#
+# Define linker flags
+#
+LD = link.exe
+LDFLAGS = $(LDFLAGS) /nologo
+LDFLAGS = $(LDFLAGS) /LIBPATH:$(BINDIR)
+LIBS = $(LIBS) user32.lib gdi32.lib ole32.lib comctl32.lib uuid.lib oleaut32.lib
+
+!if "$(DEBUG)"=="1"
+LDFLAGS = $(LDFLAGS) /DEBUG
+!else
+LDFLAGS = $(LDFLAGS) /OPT:NOWIN98
+!endif
+
+TARGET_EXE_OBJS=\
+    $(OBJDIR)\WinUtils.obj \
+    $(OBJDIR)\Window.obj \
+    $(OBJDIR)\LoadPict.obj \
+    $(NULL)
+
+TARGET_EXE_NAME = LoadPict.exe
+TARGET_PDB_NAME = LoadPict.pdb
+
+$(BINDIR)\$(TARGET_EXE_NAME) : $(BINDIR) $(TARGET_EXE_OBJS)
+       $(LD) $(LDFLAGS) $(LIBS) $(TARGET_EXE_OBJS) \
+             /OUT:$(BINDIR)\$(TARGET_EXE_NAME) \
+             /PDB:$(BINDIR)\$(TARGET_PDB_NAME)
+
+$(TARGET_EXE_OBJS) : $(OBJDIR)
+
+all: $(BINDIR)\$(TARGET_EXE_NAME)
+
+clean:
+    if exist $(BINDIR) rmdir /S /Q $(BINDIR)
+    if exist $(OBJDIR) rmdir /S /Q $(OBJDIR)
+
+$(OBJDIR):
+    if not exist $(OBJDIR) mkdir $(OBJDIR)
+
+$(BINDIR):
+    if not exist $(BINDIR) mkdir $(BINDIR)
+
+{$(BASEDIR)}.cpp{$(OBJDIR)}.obj::
+       $(CC) $(CFLAGS) /Fo$(OBJDIR)\ /Fd$(BINDIR)\$(TARGET_PDB_NAME) /c $<
+
+{$(BASEDIR)}.c{$(OBJDIR)}.obj::
+       $(CC) $(CFLAGS) /Fo$(OBJDIR)\ /Fd$(BINDIR)\$(TARGET_PDB_NAME) /c $<
