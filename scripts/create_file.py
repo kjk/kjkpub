@@ -21,6 +21,7 @@ def file_size_human_decode(s):
 
 def usage_and_exit():
 	print "Usage: create_file.py file_name file_size"
+	sys.exit(1)
 
 def main():
 	if 3 != len(sys.argv):
