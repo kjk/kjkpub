@@ -2,7 +2,18 @@ Index: src/tcmalloc.cc
 ===================================================================
 --- src/tcmalloc.cc	(revision 43)
 +++ src/tcmalloc.cc	(working copy)
-@@ -249,6 +249,11 @@
+@@ -94,6 +94,10 @@
+ #ifdef HAVE_UNISTD_H
+ #include <unistd.h>
+ #endif
++#ifdef HAVE_EXECINFO_H
++#include <execinfo.h>
++#endif
++
+ #include <errno.h>
+ #include <stdarg.h>
+ #include "packed-cache-inl.h"
+@@ -249,6 +253,11 @@
                "to return memory slower.  Reasonable rates are in the "
                "range [0,10]");
  
@@ -14,7 +25,7 @@ Index: src/tcmalloc.cc
  //-------------------------------------------------------------------
  // Mapping from size to size_class and vice versa
  //-------------------------------------------------------------------
-@@ -2301,6 +2306,21 @@
+@@ -2301,6 +2310,21 @@
    }
  }
  
@@ -36,7 +47,7 @@ Index: src/tcmalloc.cc
  // WRITE stats to "out"
  static void DumpStats(TCMalloc_Printer* out, int level) {
    TCMallocStats stats;
-@@ -2574,6 +2594,14 @@
+@@ -2574,6 +2598,14 @@
      TCMalloc_ThreadCache::InitTSD();
      free(malloc(1));
      MallocExtension::Register(new TCMallocImplementation);
@@ -51,7 +62,7 @@ Index: src/tcmalloc.cc
    }
  
    ~TCMallocGuard() {
-@@ -2642,12 +2670,23 @@
+@@ -2642,12 +2674,33 @@
        CheckedMallocResult(reinterpret_cast<void*>(span->start << kPageShift));
  }
  
@@ -59,7 +70,7 @@ Index: src/tcmalloc.cc
 +
  static inline void* do_malloc(size_t size) {
    void* ret = NULL;
- 
+-
    // The following call forces module initialization
    TCMalloc_ThreadCache* heap = TCMalloc_ThreadCache::GetCache();
 -  if ((FLAGS_tcmalloc_sample_parameter > 0) && heap->SampleAllocation(size)) {
@@ -68,9 +79,20 @@ Index: src/tcmalloc.cc
 +    printf("Failing allocation because reached allocation limit. Callstack:\n");
 +    void* key[kMaxStackTrace];
 +    int depth = MallocHook::GetCallerStackTrace(key, kMaxStackTrace, 1);
++    uint64 prevLimit = FLAGS_tcmalloc_alloc_limit;
++    FLAGS_tcmalloc_alloc_limit = 0;
++#ifdef HAVE_EXECINFO_H
++    char ** syms = backtrace_symbols(key, depth);
++    for (int i = 0; i < depth; i++) {
++      printf("%p, %s\n", key[i], syms[i]);
++    }
++    free(syms);
++#else
 +    for (int i = 0; i < depth; i++) {
 +      printf("%p\n", key[i]);
 +    }
++#endif
++    FLAGS_tcmalloc_alloc_limit = prevLimit;
 +
 +  } else if ((FLAGS_tcmalloc_sample_parameter > 0) && heap->SampleAllocation(size)) {
      Span* span = DoSampledAllocation(size);
