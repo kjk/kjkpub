@@ -76,7 +76,7 @@ Index: src/tcmalloc.cc
 -  if ((FLAGS_tcmalloc_sample_parameter > 0) && heap->SampleAllocation(size)) {
 +  if ((FLAGS_tcmalloc_alloc_limit > 0) && (GetAllocatedBytes() + size) > FLAGS_tcmalloc_alloc_limit) {
 +    // TODO: use sth. better than printf
-+    printf("Failing allocation because reached allocation limit. Callstack:\n");
++    printf("\nFailing allocation of size %d because reached allocation limit. Callstack:\n", (int)size);
 +    void* key[kMaxStackTrace];
 +    int depth = MallocHook::GetCallerStackTrace(key, kMaxStackTrace, 1);
 +    uint64 prevLimit = FLAGS_tcmalloc_alloc_limit;
