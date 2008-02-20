@@ -1,6 +1,6 @@
 Index: src/tcmalloc.cc
 ===================================================================
---- src/tcmalloc.cc	(revision 43)
+--- src/tcmalloc.cc	(revision 45)
 +++ src/tcmalloc.cc	(working copy)
 @@ -94,6 +94,10 @@
  #ifdef HAVE_UNISTD_H
@@ -25,7 +25,7 @@ Index: src/tcmalloc.cc
  //-------------------------------------------------------------------
  // Mapping from size to size_class and vice versa
  //-------------------------------------------------------------------
-@@ -2301,6 +2310,21 @@
+@@ -2327,6 +2336,21 @@
    }
  }
  
@@ -47,7 +47,7 @@ Index: src/tcmalloc.cc
  // WRITE stats to "out"
  static void DumpStats(TCMalloc_Printer* out, int level) {
    TCMallocStats stats;
-@@ -2574,6 +2598,14 @@
+@@ -2600,6 +2624,14 @@
      TCMalloc_ThreadCache::InitTSD();
      free(malloc(1));
      MallocExtension::Register(new TCMallocImplementation);
@@ -62,8 +62,8 @@ Index: src/tcmalloc.cc
    }
  
    ~TCMallocGuard() {
-@@ -2642,12 +2674,33 @@
-       CheckedMallocResult(reinterpret_cast<void*>(span->start << kPageShift));
+@@ -2678,12 +2710,33 @@
+   return span == NULL ? NULL : SpanToMallocResult(span);
  }
  
 +static const int kMaxStackTrace = 32;
@@ -83,12 +83,12 @@ Index: src/tcmalloc.cc
 +    FLAGS_tcmalloc_alloc_limit = 0;
 +#ifdef HAVE_EXECINFO_H
 +    char ** syms = backtrace_symbols(key, depth);
-+    for (int i = 0; i < depth; i++) {
++    for (int i = 0; key && (i < depth); i++) {
 +      printf("%p, %s\n", key[i], syms[i]);
 +    }
 +    free(syms);
 +#else
-+    for (int i = 0; i < depth; i++) {
++    for (int i = 0; key && (i < depth); i++) {
 +      printf("%p\n", key[i]);
 +    }
 +#endif
