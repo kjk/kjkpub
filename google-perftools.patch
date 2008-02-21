@@ -2,7 +2,15 @@ Index: src/tcmalloc.cc
 ===================================================================
 --- src/tcmalloc.cc	(revision 45)
 +++ src/tcmalloc.cc	(working copy)
-@@ -94,6 +94,10 @@
+@@ -77,6 +77,7 @@
+ #include <new>
+ #include <stdio.h>
+ #include <stddef.h>
++#include <time.h>
+ #if defined HAVE_STDINT_H
+ #include <stdint.h>
+ #elif defined HAVE_INTTYPES_H
+@@ -94,6 +95,10 @@
  #ifdef HAVE_UNISTD_H
  #include <unistd.h>
  #endif
@@ -13,7 +21,7 @@ Index: src/tcmalloc.cc
  #include <errno.h>
  #include <stdarg.h>
  #include "packed-cache-inl.h"
-@@ -249,6 +253,11 @@
+@@ -249,6 +254,20 @@
                "to return memory slower.  Reasonable rates are in the "
                "range [0,10]");
  
@@ -21,11 +29,40 @@ Index: src/tcmalloc.cc
 +              "Limits the total alloc size. Will fail malloc/new if "
 +              "allocation would cause to allocate more memory than"
 +              "the limit");
-+    
++
++DEFINE_int32(tcmalloc_random_fail_freq, 0,
++              "rate at which we simulate memory failures");
++
++DEFINE_int32(tcmalloc_random_fail_skip_first, 0,
++              "when using tcmalloc_random_fail_freq, how many first allocs to skip");
++
++static int until_next_alloc_fail;
++static int disable_failures;
++
  //-------------------------------------------------------------------
  // Mapping from size to size_class and vice versa
  //-------------------------------------------------------------------
-@@ -2327,6 +2336,21 @@
+@@ -276,6 +295,19 @@
+ static const int add_amount[2] = { 7, 127 + (120 << 7) };
+ static unsigned char class_array[377];
+ 
++int random_range(int lower, int upper)
++{
++    static bool initialized = false;
++    if (!initialized)
++    {
++        initialized = true;
++        srand((unsigned) time(NULL));
++    }
++    int range = (upper - lower);
++    int num = (double(rand()) / (double(RAND_MAX) + 1.)) * range + lower;
++    return num;
++}
++
+ // Compute index of the class_array[] entry for a given size
+ static inline int ClassIndex(int s) {
+   ASSERT(0 <= s);
+@@ -2327,6 +2359,21 @@
    }
  }
  
@@ -47,10 +84,11 @@ Index: src/tcmalloc.cc
  // WRITE stats to "out"
  static void DumpStats(TCMalloc_Printer* out, int level) {
    TCMallocStats stats;
-@@ -2600,6 +2624,14 @@
+@@ -2600,7 +2647,37 @@
      TCMalloc_ThreadCache::InitTSD();
      free(malloc(1));
      MallocExtension::Register(new TCMallocImplementation);
++
 +    const char* env = getenv("MALLOCLIMIT");
 +    if (env != NULL) {
 +      int limit = atoi(env);
@@ -59,28 +97,40 @@ Index: src/tcmalloc.cc
 +        printf("Setting malloc limit to %d\n", limit);
 +      }
 +    }
++
++    env = getenv("MALLOCFAILRATE");
++    if (env != NULL) {
++      int limit = atoi(env);
++      if (limit > 0) {
++        FLAGS_tcmalloc_random_fail_freq = limit;
++        printf("Setting malloc fail rate %d\n", FLAGS_tcmalloc_random_fail_freq);
++        until_next_alloc_fail = random_range(1, FLAGS_tcmalloc_random_fail_freq);
++        printf("Will fail next %d allocation.\n", until_next_alloc_fail);
++      }
++    }
++
++  env = getenv("MALLOCFAILSKIPFIRST");
++  if (env != NULL) {
++    int limit = atoi(env);
++    if (limit > 0) {
++      FLAGS_tcmalloc_random_fail_skip_first = limit;
++      printf("Setting malloc fail skip first to %d\n", limit);
++    }
    }
++  
++  }
  
    ~TCMallocGuard() {
-@@ -2678,12 +2710,33 @@
+     const char* env = getenv("MALLOCSTATS");
+@@ -2678,11 +2755,60 @@
    return span == NULL ? NULL : SpanToMallocResult(span);
  }
  
 +static const int kMaxStackTrace = 32;
 +
- static inline void* do_malloc(size_t size) {
-   void* ret = NULL;
--
-   // The following call forces module initialization
-   TCMalloc_ThreadCache* heap = TCMalloc_ThreadCache::GetCache();
--  if ((FLAGS_tcmalloc_sample_parameter > 0) && heap->SampleAllocation(size)) {
-+  if ((FLAGS_tcmalloc_alloc_limit > 0) && (GetAllocatedBytes() + size) > FLAGS_tcmalloc_alloc_limit) {
-+    // TODO: use sth. better than printf
-+    printf("\nFailing allocation of size %d because reached allocation limit. Callstack:\n", (int)size);
++static void dump_callstack() {
 +    void* key[kMaxStackTrace];
-+    int depth = MallocHook::GetCallerStackTrace(key, kMaxStackTrace, 1);
-+    uint64 prevLimit = FLAGS_tcmalloc_alloc_limit;
-+    FLAGS_tcmalloc_alloc_limit = 0;
++    int depth = MallocHook::GetCallerStackTrace(key, kMaxStackTrace, 2);
 +#ifdef HAVE_EXECINFO_H
 +    char ** syms = backtrace_symbols(key, depth);
 +    for (int i = 0; key && (i < depth); i++) {
@@ -92,9 +142,45 @@ Index: src/tcmalloc.cc
 +      printf("%p\n", key[i]);
 +    }
 +#endif
-+    FLAGS_tcmalloc_alloc_limit = prevLimit;
++}
 +
-+  } else if ((FLAGS_tcmalloc_sample_parameter > 0) && heap->SampleAllocation(size)) {
++static long unsigned int alloc_count;
++
+ static inline void* do_malloc(size_t size) {
+   void* ret = NULL;
+-
+   // The following call forces module initialization
++#if 0
++  ++alloc_count;
++  if (0 == (alloc_count % 2000))
++    printf("%lu allocations\n", alloc_count);
++#endif
+   TCMalloc_ThreadCache* heap = TCMalloc_ThreadCache::GetCache();
++  if ((FLAGS_tcmalloc_alloc_limit > 0) && !disable_failures && (GetAllocatedBytes() + size) > FLAGS_tcmalloc_alloc_limit) {
++    disable_failures = 1;
++    printf("\nFailing allocation of size %d because reached allocation limit. Callstack:\n", (int)size);
++    dump_callstack();
++    disable_failures = 0;
++    errno = ENOMEM;
++    return NULL;
++  }
++
++  if (FLAGS_tcmalloc_random_fail_freq != 0 && !disable_failures) {
++    if (0 == FLAGS_tcmalloc_random_fail_skip_first) {
++      if (0 == until_next_alloc_fail--) {
++        disable_failures = 1;
++        until_next_alloc_fail = random_range(1, FLAGS_tcmalloc_random_fail_freq);
++        printf("\nRandomly failing allocation of size %d. Will fail next %d allocation. Callstack:\n", (int)size, until_next_alloc_fail);
++        dump_callstack();
++        disable_failures = 0;
++        errno = ENOMEM;
++        return NULL;
++      }
++    } else {
++      --FLAGS_tcmalloc_random_fail_skip_first;
++    }
++  }
++
+   if ((FLAGS_tcmalloc_sample_parameter > 0) && heap->SampleAllocation(size)) {
      Span* span = DoSampledAllocation(size);
      if (span != NULL) {
-       ret = SpanToMallocResult(span);
