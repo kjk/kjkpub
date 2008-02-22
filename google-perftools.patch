@@ -1,6 +1,6 @@
 Index: src/tcmalloc.cc
 ===================================================================
---- src/tcmalloc.cc	(revision 45)
+--- src/tcmalloc.cc	(revision 47)
 +++ src/tcmalloc.cc	(working copy)
 @@ -77,6 +77,7 @@
  #include <new>
@@ -122,7 +122,7 @@ Index: src/tcmalloc.cc
  
    ~TCMallocGuard() {
      const char* env = getenv("MALLOCSTATS");
-@@ -2678,11 +2755,60 @@
+@@ -2678,11 +2755,63 @@
    return span == NULL ? NULL : SpanToMallocResult(span);
  }
  
@@ -136,7 +136,11 @@ Index: src/tcmalloc.cc
 +    for (int i = 0; key && (i < depth); i++) {
 +      printf("%p, %s\n", key[i], syms[i]);
 +    }
++// mac os 10.5 has execinfo.h but I'm getting a crash in free (that I don't see on Ubuntu)
++// even though the pointer does look valid
++#ifndef __APPLE__
 +    free(syms);
++#endif
 +#else
 +    for (int i = 0; key && (i < depth); i++) {
 +      printf("%p\n", key[i]);
@@ -144,18 +148,17 @@ Index: src/tcmalloc.cc
 +#endif
 +}
 +
-+static long unsigned int alloc_count;
-+
  static inline void* do_malloc(size_t size) {
    void* ret = NULL;
 -
    // The following call forces module initialization
+   TCMalloc_ThreadCache* heap = TCMalloc_ThreadCache::GetCache();
 +#if 0
++  static long unsigned int alloc_count;
 +  ++alloc_count;
 +  if (0 == (alloc_count % 2000))
 +    printf("%lu allocations\n", alloc_count);
 +#endif
-   TCMalloc_ThreadCache* heap = TCMalloc_ThreadCache::GetCache();
 +  if ((FLAGS_tcmalloc_alloc_limit > 0) && !disable_failures && (GetAllocatedBytes() + size) > FLAGS_tcmalloc_alloc_limit) {
 +    disable_failures = 1;
 +    printf("\nFailing allocation of size %d because reached allocation limit. Callstack:\n", (int)size);
