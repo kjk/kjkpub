@@ -21,7 +21,7 @@ Index: src/tcmalloc.cc
  #include <errno.h>
  #include <stdarg.h>
  #include "packed-cache-inl.h"
-@@ -249,6 +254,20 @@
+@@ -249,6 +254,22 @@
                "to return memory slower.  Reasonable rates are in the "
                "range [0,10]");
  
@@ -36,13 +36,15 @@ Index: src/tcmalloc.cc
 +DEFINE_int32(tcmalloc_random_fail_skip_first, 0,
 +              "when using tcmalloc_random_fail_freq, how many first allocs to skip");
 +
++DEFINE_int32(tcmalloc_fill_mem, 0,
++              "if 1, will fill malloc()ed and free()d memory");
++
 +static int until_next_alloc_fail;
-+static int disable_failures;
 +
  //-------------------------------------------------------------------
  // Mapping from size to size_class and vice versa
  //-------------------------------------------------------------------
-@@ -276,6 +295,19 @@
+@@ -276,6 +297,19 @@
  static const int add_amount[2] = { 7, 127 + (120 << 7) };
  static unsigned char class_array[377];
  
@@ -55,14 +57,58 @@ Index: src/tcmalloc.cc
 +        srand((unsigned) time(NULL));
 +    }
 +    int range = (upper - lower);
-+    int num = (double(rand()) / (double(RAND_MAX) + 1.)) * range + lower;
++    int num = (int)(double(rand()) / (double(RAND_MAX) + 1.)) * range + lower;
 +    return num;
 +}
 +
  // Compute index of the class_array[] entry for a given size
  static inline int ClassIndex(int s) {
    ASSERT(0 <= s);
-@@ -2327,6 +2359,21 @@
+@@ -1430,6 +1464,7 @@
+   pthread_t     tid_;                   // Which thread owns it
+   FreeList      list_[kNumClasses];     // Array indexed by size-class
+   bool          in_setspecific_;        // In call to pthread_setspecific?
++  bool		exempt_;		// (Temporarily) exempt from induced memory allocation failures
+ 
+   // Allocate a new heap. REQUIRES: pageheap_lock is held.
+   static inline TCMalloc_ThreadCache* NewHeap(pthread_t tid);
+@@ -1470,6 +1505,10 @@
+   // Pick next sampling point
+   void PickNextSample(size_t k);
+ 
++  // Exempting from induced memory allocation failures
++  bool isExempt(void);
++  void setExempt(bool b);
++
+   static void                  InitModule();
+   static void                  InitTSD();
+   static TCMalloc_ThreadCache* GetThreadHeap();
+@@ -1924,6 +1963,7 @@
+   prev_ = NULL;
+   tid_  = tid;
+   in_setspecific_ = false;
++  exempt_ = false;
+   for (size_t cl = 0; cl < kNumClasses; ++cl) {
+     list_[cl].Init();
+   }
+@@ -2282,6 +2322,16 @@
+   }
+ }
+ 
++bool TCMalloc_ThreadCache::isExempt(void)
++{
++	return exempt_;
++}
++
++void TCMalloc_ThreadCache::setExempt(bool b)
++{
++	exempt_ = b;
++}
++
+ // Extract interesting stats
+ struct TCMallocStats {
+   uint64_t system_bytes;        // Bytes alloced from system
+@@ -2327,6 +2377,21 @@
    }
  }
  
@@ -84,7 +130,7 @@ Index: src/tcmalloc.cc
  // WRITE stats to "out"
  static void DumpStats(TCMalloc_Printer* out, int level) {
    TCMallocStats stats;
-@@ -2600,7 +2647,37 @@
+@@ -2600,6 +2665,46 @@
      TCMalloc_ThreadCache::InitTSD();
      free(malloc(1));
      MallocExtension::Register(new TCMallocImplementation);
@@ -109,20 +155,29 @@ Index: src/tcmalloc.cc
 +      }
 +    }
 +
-+  env = getenv("MALLOCFAILSKIPFIRST");
-+  if (env != NULL) {
-+    int limit = atoi(env);
-+    if (limit > 0) {
-+      FLAGS_tcmalloc_random_fail_skip_first = limit;
-+      printf("Setting malloc fail skip first to %d\n", limit);
++    env = getenv("MALLOCFAILSKIPFIRST");
++    if (env != NULL) {
++      int limit = atoi(env);
++      if (limit > 0) {
++        FLAGS_tcmalloc_random_fail_skip_first = limit;
++        printf("Setting malloc fail skip first to %d\n", limit);
++      }
 +    }
-   }
++
++    env = getenv("MALLOCFILLMEM");
++    if (env != NULL) {
++      int fill = atoi(env);
++      FLAGS_tcmalloc_fill_mem = fill;
++      if (fill)
++        printf("Setting malloc to fill malloc()ed and free()d memory\n");
++      else
++        printf("Setting malloc to NOT fill malloc()ed and free()d memory\n");           
++    }
 +  
-+  }
+   }
  
    ~TCMallocGuard() {
-     const char* env = getenv("MALLOCSTATS");
-@@ -2678,11 +2755,63 @@
+@@ -2678,11 +2783,59 @@
    return span == NULL ? NULL : SpanToMallocResult(span);
  }
  
@@ -136,11 +191,7 @@ Index: src/tcmalloc.cc
 +    for (int i = 0; key && (i < depth); i++) {
 +      printf("%p, %s\n", key[i], syms[i]);
 +    }
-+// mac os 10.5 has execinfo.h but I'm getting a crash in free (that I don't see on Ubuntu)
-+// even though the pointer does look valid
-+#ifndef __APPLE__
 +    free(syms);
-+#endif
 +#else
 +    for (int i = 0; key && (i < depth); i++) {
 +      printf("%p\n", key[i]);
@@ -148,34 +199,34 @@ Index: src/tcmalloc.cc
 +#endif
 +}
 +
++void tcmalloc_set_exempt(bool b)
++{
++  TCMalloc_ThreadCache* heap = TCMalloc_ThreadCache::GetCache();
++  heap->setExempt(b);
++}
++
  static inline void* do_malloc(size_t size) {
    void* ret = NULL;
 -
    // The following call forces module initialization
    TCMalloc_ThreadCache* heap = TCMalloc_ThreadCache::GetCache();
-+#if 0
-+  static long unsigned int alloc_count;
-+  ++alloc_count;
-+  if (0 == (alloc_count % 2000))
-+    printf("%lu allocations\n", alloc_count);
-+#endif
-+  if ((FLAGS_tcmalloc_alloc_limit > 0) && !disable_failures && (GetAllocatedBytes() + size) > FLAGS_tcmalloc_alloc_limit) {
-+    disable_failures = 1;
++  if ((FLAGS_tcmalloc_alloc_limit > 0) && !heap->isExempt() && (GetAllocatedBytes() + size) > FLAGS_tcmalloc_alloc_limit) {
++    heap->setExempt(true);
 +    printf("\nFailing allocation of size %d because reached allocation limit. Callstack:\n", (int)size);
 +    dump_callstack();
-+    disable_failures = 0;
++    heap->setExempt(false);
 +    errno = ENOMEM;
 +    return NULL;
 +  }
 +
-+  if (FLAGS_tcmalloc_random_fail_freq != 0 && !disable_failures) {
++  if (FLAGS_tcmalloc_random_fail_freq != 0 && !heap->isExempt()) {
 +    if (0 == FLAGS_tcmalloc_random_fail_skip_first) {
 +      if (0 == until_next_alloc_fail--) {
-+        disable_failures = 1;
++        heap->setExempt(true);
 +        until_next_alloc_fail = random_range(1, FLAGS_tcmalloc_random_fail_freq);
-+        printf("\nRandomly failing allocation of size %d. Will fail next %d allocation. Callstack:\n", (int)size, until_next_alloc_fail);
++        printf("\nRandomly failing allocation of size %d on thread %d. Will fail next %d allocation. Callstack:\n", (int)size, (int) pthread_self(), until_next_alloc_fail);
 +        dump_callstack();
-+        disable_failures = 0;
++        heap->setExempt(false);
 +        errno = ENOMEM;
 +        return NULL;
 +      }
@@ -187,3 +238,29 @@ Index: src/tcmalloc.cc
    if ((FLAGS_tcmalloc_sample_parameter > 0) && heap->SampleAllocation(size)) {
      Span* span = DoSampledAllocation(size);
      if (span != NULL) {
+@@ -2695,7 +2848,12 @@
+   } else {
+     ret = do_malloc_pages(pages(size));
+   }
++
+   if (ret == NULL) errno = ENOMEM;
++
++  if (ret && FLAGS_tcmalloc_fill_mem) {
++    memset(ret, 0xCD, size);
++  }
+   return ret;
+ }
+ 
+@@ -2715,6 +2873,12 @@
+     ASSERT(!pageheap->GetDescriptor(p)->sample);
+     TCMalloc_ThreadCache* heap = TCMalloc_ThreadCache::GetCacheIfPresent();
+     if (heap != NULL) {
++      // important to call *before* Deallocate, because first 4 bytes of ptr
++      // are re-used for linked list pointer
++      if (FLAGS_tcmalloc_fill_mem) {
++        size_t size = ByteSizeForClass(cl);
++        memset(ptr, 0xdd, size);
++      }
+       heap->Deallocate(ptr, cl);
+     } else {
+       // Delete directly into central cache
