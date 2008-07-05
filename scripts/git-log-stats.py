@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+# Written by Krzysztof Kowalczyk (http://blog.kowalczyk.info)
+# Code is Public Domain. Take all the code you want, we'll just write more.
 
 import sys, os, os.path, subprocess, string
 
