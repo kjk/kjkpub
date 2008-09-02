@@ -25,6 +25,7 @@ TODO:
  **/
 using Cvs;
 using Svn;
+using Git;
 
 namespace Scdiff
 {
@@ -183,7 +184,50 @@ namespace Scdiff
 
         void DoGit()
         {
-            Console.WriteLine("DoGit()");
+            if (fOld_)
+                goto JustDiff;
+            process = new Process();
+            process.StartInfo.UseShellExecute = false;
+            process.StartInfo.RedirectStandardOutput = true;
+            process.StartInfo.FileName = "git";
+            process.StartInfo.Arguments = "diff --raw";
+            Console.WriteLine("Executing {0} {1}", process.StartInfo.FileName, process.StartInfo.Arguments);
+
+            try
+            {
+                process.Start();
+            }
+            catch (Win32Exception)
+            {
+                // subversion not installed
+                Console.WriteLine("Couldn't execute '{0} {1}', is git installed and available in command line?", process.StartInfo.FileName, process.StartInfo.Arguments);
+                return;
+            }
+
+            string s = process.StandardOutput.ReadToEnd();
+            ArrayList fileList = GitDiff.ParseDiffOut(s);
+            if (0 == fileList.Count)
+            {
+                Console.WriteLine("There are no diffs!");
+                return;
+            }
+JustDiff:
+            process = new Process();
+            process.StartInfo.UseShellExecute = true;
+            process.StartInfo.RedirectStandardOutput = false;
+            process.StartInfo.FileName = diffProgram_;
+            process.StartInfo.Arguments = String.Format("{0} {1}", tempDirBefore, tempDirAfter);
+            Console.WriteLine("Executing {0} {1}", process.StartInfo.FileName, process.StartInfo.Arguments);
+
+            try
+            {
+                process.Start();
+            }
+            catch (Win32Exception)
+            {
+                Console.WriteLine("Couldn't execute '{0}'", diffProgram_);
+            }
+
         }
 
         void DoCvs()
@@ -319,7 +363,6 @@ JustDiff:
                 Console.WriteLine("Couldn't execute '{0}'", diffProgram_);
             }
         }
-
 
         void DoSvn()
         {
