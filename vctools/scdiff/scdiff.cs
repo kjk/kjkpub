@@ -139,7 +139,12 @@ namespace Scdiff
                 return;
             }
 
-            Console.WriteLine("Neither .svn nor CVS directory doesn't exists. Doesn't look like this directory is under subversion or cvs control.");
+            if (IsGitDirectory())
+            {
+                DoGit();
+                return;
+            }
+            Console.WriteLine("Doesn't look like svn, cvs or git repository.");
         }
 
         enum Action
@@ -149,6 +154,37 @@ namespace Scdiff
             Deleted,
             Modified
         };
+
+        bool IsGitDirectory()
+        {
+            process = new Process();
+            process.StartInfo.UseShellExecute = false;
+            process.StartInfo.RedirectStandardOutput = true;
+            process.StartInfo.RedirectStandardError = true;
+            process.StartInfo.FileName = "git";
+            process.StartInfo.Arguments = "rev-parse --is-inside-work-tree";
+            Console.WriteLine("Executing {0} {1}", process.StartInfo.FileName, process.StartInfo.Arguments);
+            try
+            {
+                process.Start();
+            }
+            catch (Win32Exception)
+            {
+                // cvs not installed
+                Console.WriteLine("Couldn't execute '{0} {1}', is cvs installed and available in command line?", process.StartInfo.FileName, process.StartInfo.Arguments);
+                return false;
+            }
+            string s = process.StandardOutput.ReadToEnd();
+            s = s.Trim();
+            if (s == "true")
+                return true;
+            return false;
+        }
+
+        void DoGit()
+        {
+            Console.WriteLine("DoGit()");
+        }
 
         void DoCvs()
         {
