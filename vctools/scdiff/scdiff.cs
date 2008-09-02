@@ -5,7 +5,7 @@
  * 
  * Purpose:
  *   This programs does a gui diff (using an external diff program) of local changes
- *   against subversion or cvs repository.
+ *   against subversion or cvs or git repository.
  * 
  **/
 using System;
@@ -21,13 +21,14 @@ using System.Windows.Forms;
 TODO:
  * add exception handling e.g. for a case where temp directory is in use by other process. currently we "crash"
    we should display a nice error message
+ * use built-in diff viewer instead of windiff/etc.
  **/
 using Cvs;
 using Svn;
 
-namespace scdiff
+namespace Scdiff
 {
-    class scdiff
+    class Scdiff
     {
         private string  tempDir;
         private string  diffProgram_;
@@ -96,7 +97,7 @@ namespace scdiff
                     fOld=true;
             }
 
-            scdiff sc = new scdiff();
+            var sc = new Scdiff();
             sc.fOld_ = fOld;
             sc.diffProgram_ = diffProgram;
             sc.diffOptions_ = diffOptions;
@@ -108,7 +109,7 @@ namespace scdiff
             sc.run();
         }
 
-        public scdiff()
+        public Scdiff()
         {
         }
 
