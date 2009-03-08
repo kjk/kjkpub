@@ -79,12 +79,6 @@ def s3UploadPrivate(local_file_name, remote_file_name):
     k.key = remote_file_name
     k.set_contents_from_filename(local_file_name)
 
-def s3UploadDataPrivate(data, remote_file_name):
-    bucket = s3Bucket()
-    k = Key(bucket)
-    k.key = remote_file_name
-    k.set_contents_from_string(data)
-
 def day_from_name(name):
     tmp = "access_log-"
     s = name.find(tmp)
