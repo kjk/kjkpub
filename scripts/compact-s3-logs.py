@@ -37,7 +37,8 @@ How it works, roughly:
 
 
 s3BucketName = "kjklogs"
-logsDir = "kjkpub/"
+logsUncompressedDir = "kjkpub/"
+logsCompressedDir = "kjklogs/"
 
 BASE_DIR = os.path.expanduser("~/rsynced-data/s3logs")
 
@@ -51,7 +52,7 @@ def compressed_file_name_local(day):
     return os.path.join(compressed_logs_dir(), day + ".bz2")
 
 def compressed_file_name_s3(day):
-    return "kjklogs/compressed-access-logs-" + day + ".bz2"
+    return logsCompressedDir + "compressed-access-logs-" + day + ".bz2"
 
 def ensure_dir_exists(path):
     if os.path.exists(path):
@@ -104,7 +105,7 @@ def gen_files_for_day(keys):
 
 def file_name_from_s3_name(s3name):
     # skip kjkpub/ at the beginning
-    name = s3name[len(logsDir):]
+    name = s3name[len(logsUncompressedDir):]
     return os.path.join(uncompressed_logs_dir(), name)
 
 def concat_and_compress_files(day, files):
@@ -176,7 +177,7 @@ def process_day(day_keys):
     delete_keys_from_s3(day_keys)
 
 def tests():
-    s3name = logsDir + "access_log-2008-09-21-23-45-40-B7CE947BBC3F87B2"
+    s3name = logsUncompressedDir + "access_log-2008-09-21-23-45-40-B7CE947BBC3F87B2"
     assert day_from_name(s3name) == "2008-09-21"
     expected_dir = os.path.join(uncompressed_logs_dir(), "access_log-2008-09-21-23-45-40-B7CE947BBC3F87B2")
     assert file_name_from_s3_name(s3name) == expected_dir
@@ -187,7 +188,7 @@ def compress_s3_logs():
 
     b = s3Bucket()
     limit = 999
-    all_keys = b.list(logsDir + "access_log-")
+    all_keys = b.list(logsUncompressedDir + "access_log-")
     for day_keys in gen_files_for_day(all_keys):
         process_day(day_keys)
         limit -= 1
