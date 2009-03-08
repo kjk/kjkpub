@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-#import fnmatch, gzip, re, datetime
+# Code is Public Domain. Take all the code you want, we'll just write more.
 import sys, os, os.path, bz2, stat
 
 try:
