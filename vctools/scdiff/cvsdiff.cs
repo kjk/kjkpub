@@ -21,19 +21,19 @@ using ScUtil;
 // TODO: test how it handles adding new files
 namespace Cvs
 {
-    class cvsdiff
+    class CvsDiff
     {
         string cvsProgram_ = null;
         string cvsOptions_ = null;
 
-        public cvsdiff(string cvsProgram, string cvsOptions)
+        public CvsDiff(string cvsProgram, string cvsOptions)
         {
             cvsProgram_ = cvsProgram;
             cvsOptions_ = cvsOptions;
         }
         // Return a given revision ref of a file fileName as a string
         // Using "cvs -z3 update -p -r $rev $file" command
-        public string CvsCat(string fileName, string rev)
+        public string Cat(string fileName, string rev)
         {
             
             Process process = new Process();
@@ -56,7 +56,7 @@ namespace Cvs
             return output;
         }
 
-        public Stream GetCvsRevisionStream(string fileName, string rev)
+        public Stream GetRevisionStream(string fileName, string rev)
         {
             Process process = new Process();
             process.StartInfo.UseShellExecute = false;
@@ -95,7 +95,7 @@ namespace Cvs
         // Given an output of 'cvs diff -u' command, return an array of strings, 2 strings for each
         // file that contains a diff, first string is a file name, second is a revision against which
         // the local copy diff is made
-        public static List<FileNameAndRev> ExtractCvsDiffInfo(string diffTxt)
+        public static List<FileNameAndRev> ParseDiffOutput(string diffTxt)
         {
             StringReader    reader = new StringReader(diffTxt);
             var             res = new List<FileNameAndRev>();
@@ -174,7 +174,7 @@ namespace Cvs
             return res;
         }
 
-        public static void TestCvsDiffExtract()
+        public static void TestParseDiffOutput()
         {
             string filePath = @"c:\kjk\src\mine\sctools\cvsdiff";
             string fileName = "cvsDiffRes1.txt";
@@ -182,7 +182,7 @@ namespace Cvs
             StreamReader reader = new StreamReader(fullPath);
             string diffTxt = reader.ReadToEnd();
             reader.Close();
-            var res = ExtractCvsDiffInfo(diffTxt);
+            var res = ParseDiffOutput(diffTxt);
             Debug.Assert(res.Count==1);
             Debug.Assert(res[0].FileName == "Src/Merge.rc");
             Debug.Assert(res[0].Revision == "1.198");

@@ -224,16 +224,32 @@ namespace Scdiff
                 Console.WriteLine("Will show {0}", rev);
                 string fileNameOut = fileNameIn.Replace(@"/", @"\");
                 string pathOutAfter = System.IO.Path.Combine(tempDirAfter, fileNameOut);
-                string dirName = Path.GetDirectoryName(pathOutAfter);
-                if (!Directory.Exists(dirName))
-                    Directory.CreateDirectory(dirName);
+                EnsureDirForFilePathExists(pathOutAfter);
+
                 // copy working copy to tempDirAfter
                 if (File.Exists(fileNameOut))
                 {
                     File.Copy(fileNameOut, pathOutAfter);
                 }
 
-                /* TODO: copy revision as 'before' */
+                // copy revision to tempDirBefore
+                string pathOutBefore = System.IO.Path.Combine(tempDirBefore, fileNameOut);
+                EnsureDirForFilePathExists(pathOutBefore);
+
+                FileStream streamOut = File.OpenWrite(pathOutBefore);
+
+                Stream streamIn = GitDiff.GetRevisionStream(rev);
+                int bufSize = 2048;
+                byte[] buf = new byte[bufSize];
+                int read;
+                while (true)
+                {
+                    read = streamIn.Read(buf, 0, bufSize);
+                    if (0 == read)
+                        break; // end of file
+                    streamOut.Write(buf, 0, read);
+                }
+                streamOut.Close();
             }
 
 JustDiff:
@@ -253,6 +269,13 @@ JustDiff:
                 Console.WriteLine("Couldn't execute '{0}'", diffProgram_);
             }
 
+        }
+
+        void EnsureDirForFilePathExists(string filePath)
+        {
+            string dirName = Path.GetDirectoryName(filePath);
+            if (!Directory.Exists(dirName))
+                Directory.CreateDirectory(dirName);
         }
 
         void DoCvs()
@@ -279,7 +302,7 @@ JustDiff:
                 return;
             }
             string output = process.StandardOutput.ReadToEnd();
-            var fileList = cvsdiff.ExtractCvsDiffInfo(output);
+            var fileList = CvsDiff.ParseDiffOutput(output);
             if (0==fileList.Count)
             {
                 Console.WriteLine("There are no diffs!");
@@ -297,9 +320,7 @@ JustDiff:
                 string fileNameOut = fileNameIn.Replace(@"/", @"\");
 
                 string pathOutAfter = System.IO.Path.Combine(tempDirAfter,fileNameOut);
-                string dirName = Path.GetDirectoryName(pathOutAfter);
-                if (!Directory.Exists(dirName))
-                    Directory.CreateDirectory(dirName);
+                EnsureDirForFilePathExists(pathOutAfter);
 
                 Action a = Action.Unknown;
 
@@ -344,13 +365,11 @@ JustDiff:
                 if (a != Action.Added)
                 {
                     string pathOutBefore = System.IO.Path.Combine(tempDirBefore,fileNameIn);
-                    dirName = Path.GetDirectoryName(pathOutBefore);
-                    if (!Directory.Exists(dirName))
-                        Directory.CreateDirectory(dirName);
+                    EnsureDirForFilePathExists(pathOutBefore);
                     FileStream streamOut = File.OpenWrite(pathOutBefore);
 
-                    cvsdiff diff = new cvsdiff(cvsProgram_, cvsOptions_);
-                    Stream streamIn = diff.GetCvsRevisionStream(fileNameIn, rev);
+                    var diff = new CvsDiff(cvsProgram_, cvsOptions_);
+                    Stream streamIn = diff.GetRevisionStream(fileNameIn, rev);
                     int bufSize = 2048;
                     byte [] buf = new byte[bufSize];
                     int read;
@@ -416,7 +435,7 @@ JustDiff:
                 return;
             }
             string output = process.StandardOutput.ReadToEnd();
-            var fileList = svndiff.ExtractSvnDiffInfo(output);
+            var fileList = SvnDiff.ParseDiffOutput(output);
             if (0==fileList.Count)
             {
                 Console.WriteLine("There are no diffs!");
@@ -433,9 +452,7 @@ JustDiff:
                 // change Unix path into Windows path. Hope this is correct
                 string fileNameOut = fileNameIn.Replace(@"/", @"\");
                 string pathOutAfter = System.IO.Path.Combine(tempDirAfter,fileNameOut);
-                string dirName = Path.GetDirectoryName(pathOutAfter);
-                if (!Directory.Exists(dirName))
-                    Directory.CreateDirectory(dirName);
+                EnsureDirForFilePathExists(pathOutAfter);
 
                 // copy working copy to tempDirAfter
                 if (File.Exists(fileNameOut))
@@ -462,12 +479,10 @@ JustDiff:
                 {
                     // copy revision to tempDirBefore
                     string pathOutBefore = System.IO.Path.Combine(tempDirBefore,fileNameOut);
-                    dirName = Path.GetDirectoryName(pathOutBefore);
-                    if (!Directory.Exists(dirName))
-                        Directory.CreateDirectory(dirName);
+                    EnsureDirForFilePathExists(pathOutBefore);
                     FileStream streamOut = File.OpenWrite(pathOutBefore);
 
-                    Stream streamIn = svndiff.GetSvnRevisionStream(fileNameIn, rev);
+                    Stream streamIn = SvnDiff.GetRevisionStream(fileNameIn, rev);
                     int bufSize = 2048;
                     byte [] buf = new byte[bufSize];
                     int read;

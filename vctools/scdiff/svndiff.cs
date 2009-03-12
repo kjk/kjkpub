@@ -30,9 +30,9 @@ namespace ScUtil
 
 namespace Svn
 {
-    class svndiff
+    class SvnDiff
     {
-        public static string quoteFileName(string fileName)
+        public static string QuoteFileName(string fileName)
         {
             if (-1 != fileName.IndexOf(' '))
             {
@@ -44,13 +44,13 @@ namespace Svn
             }
         }
 
-        public static string SvnCat(string fileName, string rev)
+        public static string Cat(string fileName, string rev)
         {
             Process process = new Process();
             process.StartInfo.UseShellExecute = false;
             process.StartInfo.RedirectStandardOutput = true;
             process.StartInfo.FileName = "svn";
-            process.StartInfo.Arguments = String.Format("cat -r {0} {1}", rev, quoteFileName(fileName));
+            process.StartInfo.Arguments = String.Format("cat -r {0} {1}", rev, QuoteFileName(fileName));
             Console.WriteLine("Executing {0} {1}", process.StartInfo.FileName, process.StartInfo.Arguments);
             try 
             {
@@ -66,13 +66,13 @@ namespace Svn
             return output;
         }
 
-        public static Stream GetSvnRevisionStream(string fileName, string rev)
+        public static Stream GetRevisionStream(string fileName, string rev)
         {
             Process process = new Process();
             process.StartInfo.UseShellExecute = false;
             process.StartInfo.RedirectStandardOutput = true;
             process.StartInfo.FileName = "svn";
-            process.StartInfo.Arguments = String.Format("cat -r {0} {1}", rev, quoteFileName(fileName));
+            process.StartInfo.Arguments = String.Format("cat -r {0} {1}", rev, QuoteFileName(fileName));
             Console.WriteLine("Executing {0} {1}", process.StartInfo.FileName, process.StartInfo.Arguments);
             try 
             {
@@ -103,7 +103,7 @@ namespace Svn
         // Given an output of 'svn diff' command, return an array of strings, 2 strings for each
         // file that contains a diff, first string is a file name, second is a revision against which
         // the local copy diff is made
-        public static List<FileNameAndRev> ExtractSvnDiffInfo(string diffTxt)
+        public static List<FileNameAndRev> ParseDiffOutput(string diffTxt)
         {
             StringReader reader = new StringReader(diffTxt);
             var res = new List<FileNameAndRev>();
@@ -177,30 +177,30 @@ namespace Svn
             return res;
         }
 
-        public static List<FileNameAndRev> ExtractSvnDiffFromFile(string filePath)
+        public static List<FileNameAndRev> ParseDiffOutputFromFile(string filePath)
         {
             StreamReader reader = new StreamReader(filePath);
             string svnDiffTxt = reader.ReadToEnd();
             reader.Close();
-            return ExtractSvnDiffInfo(svnDiffTxt);
+            return ParseDiffOutput(svnDiffTxt);
         }
 
-        public static void TestSvnDiffExtract()
+        public static void TestParseDiffOutputt()
         {
             string filePath = @"c:\kjk\src\mine\sctools\svndiff\tests";
-            var res = ExtractSvnDiffFromFile(System.IO.Path.Combine(filePath,"svnDiffRes1.txt"));
+            var res = ParseDiffOutputFromFile(System.IO.Path.Combine(filePath, "svnDiffRes1.txt"));
             Debug.Assert(res.Count==1);
             Debug.Assert(res[0].FileName =="verifyRedirects.py");
             Debug.Assert(res[0].Revision == "295");
 
-            res = ExtractSvnDiffFromFile(System.IO.Path.Combine(filePath,"svnDiffRes2.txt"));
+            res = ParseDiffOutputFromFile(System.IO.Path.Combine(filePath, "svnDiffRes2.txt"));
             Debug.Assert(res.Count==4);
             Debug.Assert(res[0].FileName == "converter.py");
             Debug.Assert(res[0].Revision == "295");
             Debug.Assert(res[1].FileName == "verifyRedirects.py");
             Debug.Assert(res[1].Revision == "295");
 
-            res = ExtractSvnDiffFromFile(System.IO.Path.Combine(filePath,"svnDiffBin.txt"));
+            res = ParseDiffOutput(System.IO.Path.Combine(filePath, "svnDiffBin.txt"));
             Debug.Assert(res.Count==0);
         }
     }
