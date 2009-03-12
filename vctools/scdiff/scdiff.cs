@@ -171,8 +171,8 @@ namespace Scdiff
             }
             catch (Win32Exception)
             {
-                // cvs not installed
-                Console.WriteLine("Couldn't execute '{0} {1}', is cvs installed and available in command line?", process.StartInfo.FileName, process.StartInfo.Arguments);
+                // git not installed
+                Console.WriteLine("Couldn't execute '{0} {1}', is git installed and available in command line?", process.StartInfo.FileName, process.StartInfo.Arguments);
                 return false;
             }
             string s = process.StandardOutput.ReadToEnd();
@@ -199,18 +199,43 @@ namespace Scdiff
             }
             catch (Win32Exception)
             {
-                // subversion not installed
+                // git not installed
                 Console.WriteLine("Couldn't execute '{0} {1}', is git installed and available in command line?", process.StartInfo.FileName, process.StartInfo.Arguments);
                 return;
             }
 
             string s = process.StandardOutput.ReadToEnd();
-            ArrayList fileList = GitDiff.ParseDiffOut(s);
+            var fileList = GitDiff.ParseDiffOut(s);
             if (0 == fileList.Count)
             {
                 Console.WriteLine("There are no diffs!");
                 return;
             }
+            PrepareTempDirs();
+
+            for (int i = 0; i < fileList.Count; i++)
+            {
+                var fi = fileList[i];
+                var rev = fi.Revision;
+                var fileNameIn = fi.FileName;
+                /* strip trailing "..." from the end since git show
+                 * interprets them as range */
+                rev = rev.Trim(".".ToCharArray());
+                Console.WriteLine("Will show {0}", rev);
+                string fileNameOut = fileNameIn.Replace(@"/", @"\");
+                string pathOutAfter = System.IO.Path.Combine(tempDirAfter, fileNameOut);
+                string dirName = Path.GetDirectoryName(pathOutAfter);
+                if (!Directory.Exists(dirName))
+                    Directory.CreateDirectory(dirName);
+                // copy working copy to tempDirAfter
+                if (File.Exists(fileNameOut))
+                {
+                    File.Copy(fileNameOut, pathOutAfter);
+                }
+
+                /* TODO: copy revision as 'before' */
+            }
+
 JustDiff:
             process = new Process();
             process.StartInfo.UseShellExecute = true;
@@ -254,26 +279,19 @@ JustDiff:
                 return;
             }
             string output = process.StandardOutput.ReadToEnd();
-            ArrayList fileList = cvsdiff.ExtractCvsDiffInfo(output);
+            var fileList = cvsdiff.ExtractCvsDiffInfo(output);
             if (0==fileList.Count)
             {
                 Console.WriteLine("There are no diffs!");
                 return;
             }
 
-            // we need to have empty directories
-            if (Directory.Exists(tempDirBefore)) 
-                Directory.Delete(tempDirBefore,true);
-            Directory.CreateDirectory(tempDirBefore);
+            PrepareTempDirs();
 
-            if (Directory.Exists(tempDirAfter)) 
-                Directory.Delete(tempDirAfter,true);
-            Directory.CreateDirectory(tempDirAfter);
-
-            for (int i = 0; i < fileList.Count/2; i++)
+            for (int i = 0; i < fileList.Count; i++)
             {
-                string fileNameIn = (string)fileList[i*2];
-                string rev = (string)fileList[i*2+1];
+                string fileNameIn = fileList[i].FileName;
+                string rev = fileList[i].Revision;
 
                 // change Unix path into Windows path. Hope this is correct
                 string fileNameOut = fileNameIn.Replace(@"/", @"\");
@@ -364,6 +382,17 @@ JustDiff:
             }
         }
 
+        void PrepareTempDirs()
+        {
+            if (Directory.Exists(tempDirBefore))
+                Directory.Delete(tempDirBefore, true);
+            Directory.CreateDirectory(tempDirBefore);
+
+            if (Directory.Exists(tempDirAfter))
+                Directory.Delete(tempDirAfter, true);
+            Directory.CreateDirectory(tempDirAfter);
+        }
+
         void DoSvn()
         {
             if (fOld_)
@@ -387,26 +416,19 @@ JustDiff:
                 return;
             }
             string output = process.StandardOutput.ReadToEnd();
-            ArrayList fileList = svndiff.ExtractSvnDiffInfo(output);
+            var fileList = svndiff.ExtractSvnDiffInfo(output);
             if (0==fileList.Count)
             {
                 Console.WriteLine("There are no diffs!");
                 return;
             }
 
-            // we need to have empty directories
-            if (Directory.Exists(tempDirBefore)) 
-                Directory.Delete(tempDirBefore,true);
-            Directory.CreateDirectory(tempDirBefore);
+            PrepareTempDirs();
 
-            if (Directory.Exists(tempDirAfter)) 
-                Directory.Delete(tempDirAfter,true);
-            Directory.CreateDirectory(tempDirAfter);
-
-            for (int i = 0; i < fileList.Count/2; i++)
+            for (int i = 0; i < fileList.Count; i++)
             {
-                string fileNameIn = (string)fileList[i*2];
-                string rev = (string)fileList[i*2+1];
+                string fileNameIn = fileList[i].FileName;
+                string rev = fileList[i].Revision;
 
                 // change Unix path into Windows path. Hope this is correct
                 string fileNameOut = fileNameIn.Replace(@"/", @"\");

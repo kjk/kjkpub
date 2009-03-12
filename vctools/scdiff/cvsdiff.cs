@@ -9,12 +9,14 @@
  **/
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Text.RegularExpressions;
 using System.Text;
 using System.IO;
 using System.Diagnostics;
 using System.Windows.Forms;
+using ScUtil;
 
 // TODO: test how it handles adding new files
 namespace Cvs
@@ -93,10 +95,10 @@ namespace Cvs
         // Given an output of 'cvs diff -u' command, return an array of strings, 2 strings for each
         // file that contains a diff, first string is a file name, second is a revision against which
         // the local copy diff is made
-        public static ArrayList ExtractCvsDiffInfo(string diffTxt)
+        public static List<FileNameAndRev> ExtractCvsDiffInfo(string diffTxt)
         {
             StringReader    reader = new StringReader(diffTxt);
-            ArrayList       res = new ArrayList();
+            var             res = new List<FileNameAndRev>();
             ParseState      state = ParseState.EXPECT_INDEX;
             string          txt;
             string          fileName = null;
@@ -147,8 +149,10 @@ namespace Cvs
                         Debug.Assert( txt.StartsWith("retrieving revision") );
                         Match match = Regex.Match(txt, @"retrieving revision[^\d]+([\d\.]+)");
                         string rev = match.Groups[1].Value;
-                        res.Add(fileName);
-                        res.Add(rev);
+                        var fi = new FileNameAndRev();
+                        fi.FileName = fileName;
+                        fi.Revision = rev;
+                        res.Add(fi);
                         // TODO: should also make sure that this is followed by:
                         // diff -u -r...
                         // --- FileName ...
@@ -178,10 +182,10 @@ namespace Cvs
             StreamReader reader = new StreamReader(fullPath);
             string diffTxt = reader.ReadToEnd();
             reader.Close();
-            ArrayList res = ExtractCvsDiffInfo(diffTxt);
-            Debug.Assert(res.Count==2);
-            Debug.Assert((string)res[0]=="Src/Merge.rc");
-            Debug.Assert((string)res[1]=="1.198");
+            var res = ExtractCvsDiffInfo(diffTxt);
+            Debug.Assert(res.Count==1);
+            Debug.Assert(res[0].FileName == "Src/Merge.rc");
+            Debug.Assert(res[0].Revision == "1.198");
         }
     }
 }

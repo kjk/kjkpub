@@ -9,12 +9,24 @@
  **/
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Text.RegularExpressions;
 using System.Text;
 using System.IO;
 using System.Diagnostics;
 using System.Windows.Forms;
+using ScUtil;
+
+namespace ScUtil
+{
+    struct FileNameAndRev
+    {
+        public string FileName;
+        public string Revision;
+    }
+}
+
 
 namespace Svn
 {
@@ -91,10 +103,10 @@ namespace Svn
         // Given an output of 'svn diff' command, return an array of strings, 2 strings for each
         // file that contains a diff, first string is a file name, second is a revision against which
         // the local copy diff is made
-        public static ArrayList ExtractSvnDiffInfo(string diffTxt)
+        public static List<FileNameAndRev> ExtractSvnDiffInfo(string diffTxt)
         {
             StringReader reader = new StringReader(diffTxt);
-            ArrayList    res = new ArrayList();
+            var res = new List<FileNameAndRev>();
             ParseState   state = ParseState.EXPECT_INDEX;
             string       txt;
             string       fileName = null;
@@ -139,8 +151,10 @@ namespace Svn
                         Debug.Assert( -1 != txt.IndexOf(fileName) );
                         Match match = Regex.Match(txt, @"\(revision[^\d]+(\d+)\)");
                         string rev = match.Groups[1].Value;
-                        res.Add(fileName);
-                        res.Add(rev);
+                        var fi = new FileNameAndRev();
+                        fi.FileName = fileName;
+                        fi.Revision = rev;
+                        res.Add(fi);
                         state = ParseState.AFTER_REV;
                         break;
                     case ParseState.AFTER_REV:
@@ -163,7 +177,7 @@ namespace Svn
             return res;
         }
 
-        public static ArrayList ExtractSvnDiffFromFile(string filePath)
+        public static List<FileNameAndRev> ExtractSvnDiffFromFile(string filePath)
         {
             StreamReader reader = new StreamReader(filePath);
             string svnDiffTxt = reader.ReadToEnd();
@@ -173,19 +187,18 @@ namespace Svn
 
         public static void TestSvnDiffExtract()
         {
-            ArrayList res;
             string filePath = @"c:\kjk\src\mine\sctools\svndiff\tests";
-            res = ExtractSvnDiffFromFile(System.IO.Path.Combine(filePath,"svnDiffRes1.txt"));
-            Debug.Assert(res.Count==2);
-            Debug.Assert((string)res[0]=="verifyRedirects.py");
-            Debug.Assert((string)res[1]=="295");
+            var res = ExtractSvnDiffFromFile(System.IO.Path.Combine(filePath,"svnDiffRes1.txt"));
+            Debug.Assert(res.Count==1);
+            Debug.Assert(res[0].FileName =="verifyRedirects.py");
+            Debug.Assert(res[0].Revision == "295");
 
             res = ExtractSvnDiffFromFile(System.IO.Path.Combine(filePath,"svnDiffRes2.txt"));
             Debug.Assert(res.Count==4);
-            Debug.Assert((string)res[0]=="converter.py");
-            Debug.Assert((string)res[1]=="295");
-            Debug.Assert((string)res[2]=="verifyRedirects.py");
-            Debug.Assert((string)res[3]=="295");
+            Debug.Assert(res[0].FileName == "converter.py");
+            Debug.Assert(res[0].Revision == "295");
+            Debug.Assert(res[1].FileName == "verifyRedirects.py");
+            Debug.Assert(res[1].Revision == "295");
 
             res = ExtractSvnDiffFromFile(System.IO.Path.Combine(filePath,"svnDiffBin.txt"));
             Debug.Assert(res.Count==0);
