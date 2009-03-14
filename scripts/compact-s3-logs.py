@@ -35,7 +35,6 @@ How it works, roughly:
 
 """
 
-
 s3BucketName = "kjklogs"
 logsDir = "kjkpub/"
 
@@ -70,7 +69,7 @@ def s3connection():
         g_s3conn = boto.s3.connection.S3Connection(awscreds.access, awscreds.secret, True)
     return g_s3conn
 
-def s3Bucket(): return s3connection().create_bucket(s3BucketName)
+def s3Bucket(): return s3connection().get_bucket(s3BucketName)
 
 def s3UploadPrivate(local_file_name, remote_file_name):
     print("Uploading %s as %s" % (local_file_name, remote_file_name))
