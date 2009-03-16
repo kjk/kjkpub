@@ -219,9 +219,10 @@ def compress_s3_logs():
         if limit <= 0:
             break
     print("Had to delete %d files of total size %d bytes" % (g_total_deleted, g_total_deleted_size))
-    saved = g_uncompressed_size - g_compressed_size
-    saved_percent = float(100) * float(saved) / float(g_uncompressed_size)
-    print("Compressed size: %d, uncompressed size: %d, saving: %d which is %.2f %%" % (g_compressed_size, g_uncompressed_size, saved, saved_percent))
+    if 0 != g_uncompressed_size:
+        saved = g_uncompressed_size - g_compressed_size
+        saved_percent = float(100) * float(saved) / float(g_uncompressed_size)
+        print("Compressed size: %d, uncompressed size: %d, saving: %d which is %.2f %%" % (g_compressed_size, g_uncompressed_size, saved, saved_percent))
 
 def main():
     tests()
