@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # Code is Public Domain. Take all the code you want, we'll just write more.
-import sys, os, os.path, bz2, stat
+import sys, os, os.path, bz2, stat, shutil
 
 try:
     import boto.s3
@@ -32,7 +32,6 @@ How it works, roughly:
 * upload back to s3
 * delete the original files
 * repeat until there are no more logs to process
-
 """
 
 s3BucketName = "kjklogs"
@@ -106,12 +105,9 @@ def file_name_from_s3_name(s3name):
     name = s3name[len(logsDir):]
     return os.path.join(uncompressed_logs_dir(), name)
 
-def concat_and_compress_files(day, files):
+def new_compressed(file_name, files):
     global g_uncompressed_size, g_compressed_size
-    file_name = compressed_file_name_local(day)
-    # TODO: this is probably a valid scenario in which we just have to append
-    # to existing compressed file
-    assert not os.path.exists(file_name)
+    print("Saving to new compressed file %s" % file_name)
     fo_out = bz2.BZ2File(file_name, "wb")
     for f in files:
         g_uncompressed_size += get_file_size(f)
@@ -119,6 +115,37 @@ def concat_and_compress_files(day, files):
         fo_out.write(data)
     fo_out.close()
     g_compressed_size += get_file_size(file_name)
+
+def read_bzip2(file_name):
+    fo = bz2.BZ2File(file_name, "rb")
+    data = fo.read()
+    fo.close()
+    return data
+
+def append_to_compressed(file_name, files):
+    global g_uncompressed_size, g_compressed_size
+    print("Appending to compressed file %s" % file_name)
+    assert os.path.exists(file_name)
+    g_compressed_size -= get_file_size(file_name)
+    #shutil.copy(file_name, file_name + ".orig.bz2")
+    file_name_tmp = file_name + ".tmp"
+    fo_out = bz2.BZ2File(file_name_tmp, "wb")
+    data = read_bzip2(file_name)
+    fo_out.write(data)
+    for f in files:
+        g_uncompressed_size += get_file_size(f)
+        data = file(f, "rb").read()
+        fo_out.write(data)
+    fo_out.close()
+    shutil.move(file_name_tmp, file_name)
+    g_compressed_size += get_file_size(file_name)
+
+def concat_and_compress_files(day, files):
+    file_name = compressed_file_name_local(day)
+    if os.path.exists(file_name):
+        append_to_compressed(file_name, files)
+    else:
+        new_compressed(file_name, files)
 
 def delete_keys_from_s3(keys):
     for key in keys:
@@ -167,7 +194,6 @@ def process_day(day_keys):
         deleted = dl_or_delete_forbidden(key, file_name)
         if not deleted:
             files.append(file_name)
-    print("Saving to compressed file %s" % compressed_file_name_local(day))
     concat_and_compress_files(day, files)
     file_name = compressed_file_name_local(day)
     s3name = compressed_file_name_s3(day)
