@@ -57,7 +57,7 @@ namespace Scdiff
                     continue;
                 }
 
-                if (args[i]=="-h" || args[i]=="-help" || args[i]=="--help" || args[i]=="/?" || args[i]=="/h")
+                if (args[i]=="-h" || args[i]=="-help" || args[i]=="--help" || args[i]=="/?" || args[i]=="/h" || args[i] == "-v" || args[i] == "--version")
                 {
                     Usage();
                     return;
@@ -517,7 +517,7 @@ JustDiff:
 
         public static void Usage()
         {
-            Console.WriteLine("scdiff v0.4 usage: scdiff [-old] [-cvs cvsCommand] [-cvsargs cvsOptions] [-diff diffProgram]");
+            Console.WriteLine("scdiff v0.5 usage: scdiff [-h] [-old] [-cvs cvsCommand] [-cvsargs cvsOptions] [-diff diffProgram]");
         }
     }
 

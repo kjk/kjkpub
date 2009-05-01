@@ -63,8 +63,8 @@ namespace Git
             }
             catch (Win32Exception)
             {
-                // subversion not installed
-                Console.WriteLine("Couldn't execute 'svn cat', is subversion installed and available in command line?");
+                // git not installed
+                Console.WriteLine("Couldn't execute 'git show', is git installed and available in command line?");
                 return null;
             }
             return process.StandardOutput.BaseStream;
