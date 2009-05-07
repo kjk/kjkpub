@@ -140,9 +140,11 @@ namespace Scdiff
                 return;
             }
 
-            if (IsGitDirectory())
+            int gitDirNestingLevel = GitDirectoryNestingLevel();
+            if (-1 != gitDirNestingLevel)
             {
-                DoGit();
+                //Console.WriteLine("Nesting level: {0}", gitDirNestingLevel);
+                DoGit(gitDirNestingLevel);
                 return;
             }
             Console.WriteLine("Doesn't look like svn, cvs or git repository.");
@@ -156,14 +158,15 @@ namespace Scdiff
             Modified
         };
 
-        bool IsGitDirectory()
+        // -1 means not in a git directory
+        int GitDirectoryNestingLevel()
         {
             process = new Process();
             process.StartInfo.UseShellExecute = false;
             process.StartInfo.RedirectStandardOutput = true;
             process.StartInfo.RedirectStandardError = true;
             process.StartInfo.FileName = "git";
-            process.StartInfo.Arguments = "rev-parse --is-inside-work-tree";
+            process.StartInfo.Arguments = "rev-parse --show-prefix";
             Console.WriteLine("Executing {0} {1}", process.StartInfo.FileName, process.StartInfo.Arguments);
             try
             {
@@ -173,16 +176,18 @@ namespace Scdiff
             {
                 // git not installed
                 Console.WriteLine("Couldn't execute '{0} {1}', is git installed and available in command line?", process.StartInfo.FileName, process.StartInfo.Arguments);
-                return false;
+                return -1;
             }
             string s = process.StandardOutput.ReadToEnd();
-            s = s.Trim();
-            if (s == "true")
-                return true;
-            return false;
+            string err = process.StandardError.ReadToEnd();
+            if (err.StartsWith("fatal:"))
+                return -1;
+            // TODO: this is an expensive way to count number of slashes
+            string[] parts = s.Split("/".ToCharArray());
+            return parts.Length - 1;
         }
 
-        void DoGit()
+        void DoGit(int dirNestingLevel)
         {
             if (fOld_)
                 goto JustDiff;
@@ -192,6 +197,13 @@ namespace Scdiff
             process.StartInfo.FileName = "git";
             process.StartInfo.Arguments = "diff --raw";
             Console.WriteLine("Executing {0} {1}", process.StartInfo.FileName, process.StartInfo.Arguments);
+
+            string dirPrefix = "";
+            while (dirNestingLevel > 0)
+            {
+                dirPrefix += "..\\";
+                --dirNestingLevel;
+            }
 
             try
             {
@@ -221,16 +233,18 @@ namespace Scdiff
                 /* strip trailing "..." from the end since git show
                  * interprets them as range */
                 rev = rev.Trim(".".ToCharArray());
-                Console.WriteLine("Will show {0}", rev);
+                //Console.WriteLine("Will show {0}", rev);
                 string fileNameOut = fileNameIn.Replace(@"/", @"\");
                 string pathOutAfter = System.IO.Path.Combine(tempDirAfter, fileNameOut);
                 EnsureDirForFilePathExists(pathOutAfter);
 
                 // copy working copy to tempDirAfter
-                if (File.Exists(fileNameOut))
-                {
-                    File.Copy(fileNameOut, pathOutAfter);
-                }
+                string fileNameOutToCopy = dirPrefix + fileNameOut;
+                //Console.WriteLine("file: " + fileNameOutToCopy);
+                if (File.Exists(fileNameOutToCopy))
+                    File.Copy(fileNameOutToCopy, pathOutAfter);
+                else
+                    Console.WriteLine("file: '{0}' doesn't exist", fileNameOutToCopy);
 
                 // copy revision to tempDirBefore
                 string pathOutBefore = System.IO.Path.Combine(tempDirBefore, fileNameOut);
@@ -517,7 +531,7 @@ JustDiff:
 
         public static void Usage()
         {
-            Console.WriteLine("scdiff v0.5 usage: scdiff [-h] [-old] [-cvs cvsCommand] [-cvsargs cvsOptions] [-diff diffProgram]");
+            Console.WriteLine("scdiff v0.6 usage: scdiff [-h] [-old] [-cvs cvsCommand] [-cvsargs cvsOptions] [-diff diffProgram]");
         }
     }
 
