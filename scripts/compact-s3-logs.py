@@ -47,6 +47,11 @@ def compressed_file_path_local(day):
 def compressed_file_name_s3(day):
     return logsDir + "compressed-access-logs-" + day + ".bz2"
 
+def uncompressed_dir(s3name):
+    name = s3name[len(logsDir):]
+    dirname = year_month_from_name(name)
+    return os.path.join(UNCOMPRESSED_LOGS_DIR, dirname)
+
 def uncompressed_file_path(s3name):
     # skip kjkpub/ at the beginning
     name = s3name[len(logsDir):]
@@ -185,8 +190,10 @@ def dl_or_delete_forbidden(key, file_path):
     return False
 
 def process_day(day_keys):
-    ymd = year_month_day_from_name(day_keys[0].name)
+    s3name = day_keys[0].name
+    ymd = year_month_day_from_name(s3name)
     print("Processing %s, files: %d" % (ymd, len(day_keys)))
+    ensure_dir_exists(uncompressed_dir(s3name))
     for key in day_keys:
         file_name = uncompressed_file_path(key.name)
         file_size = key.size
