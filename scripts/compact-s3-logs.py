@@ -38,18 +38,20 @@ s3BucketName = "kjklogs"
 logsDir = "kjkpub/"
 
 BASE_DIR = os.path.expanduser("~/rsynced-data/s3logs")
+UNCOMPRESSED_LOGS_DIR = os.path.join(BASE_DIR, "uncompressed")
+COMPRESSED_LOGS_DIR = os.path.join(BASE_DIR, "compressed")
 
-def uncompressed_logs_dir():
-    return os.path.join(BASE_DIR, "uncompressed")
-
-def compressed_logs_dir():
-    return os.path.join(BASE_DIR, "compressed")
-
-def compressed_file_name_local(day):
-    return os.path.join(compressed_logs_dir(), day + ".bz2")
+def compressed_file_path_local(day):
+    return os.path.join(COMPRESSED_LOGS_DIR, day + ".bz2")
 
 def compressed_file_name_s3(day):
     return logsDir + "compressed-access-logs-" + day + ".bz2"
+
+def uncompressed_file_path(s3name):
+    # skip kjkpub/ at the beginning
+    name = s3name[len(logsDir):]
+    dirname = year_month_from_name(name)
+    return os.path.join(UNCOMPRESSED_LOGS_DIR, dirname, name)
 
 def ensure_dir_exists(path):
     if os.path.exists(path):
@@ -60,6 +62,12 @@ def ensure_dir_exists(path):
 def get_file_size(filename):
     st = os.stat(filename)
     return st[stat.ST_SIZE]
+
+def read_file(file_path):
+    fo = open(file_path, "rb")
+    data = fo.read()
+    fo.close()
+    return data
 
 g_s3conn = None
 def s3connection():
@@ -77,19 +85,27 @@ def s3UploadPrivate(local_file_name, remote_file_name):
     k.key = remote_file_name
     k.set_contents_from_filename(local_file_name)
 
-def day_from_name(name):
-    tmp = "access_log-"
-    s = name.find(tmp)
-    day_name_start = s+len(tmp)
-    day_name_end = day_name_start + len("2009-00-00")
-    day = name[day_name_start:day_name_end]
-    return day
+# given a name in format "access_log-YYYY-MM-DD-$time-$hash" return YYYY-MM part
+def year_month_from_name(name):
+    parts = name.split("-")
+    year = parts[1]
+    assert 4 == len(year)
+    month = parts[2]
+    assert 2 == len(month)
+    return year + "-" + month
+
+# given a name in format "access_log-YYYY-MM-DD-$time-$hash" return DD part
+def year_month_day_from_name(name):
+    parts = name.split("-")
+    ymd = "-".join(parts[1:4])
+    assert 10 == len(ymd)
+    return ymd
 
 def gen_files_for_day(keys):
     curr_day = None
     curr = []
     for key in keys:
-        day = day_from_name(key.name)
+        day = year_month_day_from_name(key.name)
         if day == curr_day:
             curr.append(key)
         else:
@@ -100,62 +116,48 @@ def gen_files_for_day(keys):
     if len(curr) > 0:
         yield curr
 
-def file_name_from_s3_name(s3name):
-    # skip kjkpub/ at the beginning
-    name = s3name[len(logsDir):]
-    return os.path.join(uncompressed_logs_dir(), name)
-
-def new_compressed(file_name, files):
+def compress_files(compressed_file_path, file_paths):
     global g_uncompressed_size, g_compressed_size
-    print("Saving to new compressed file %s" % file_name)
-    fo_out = bz2.BZ2File(file_name, "wb")
-    for f in files:
-        g_uncompressed_size += get_file_size(f)
-        data = file(f, "rb").read()
+    print("Creating new compressed file %s from %d files" % (compressed_file_path, len(file_paths)))
+    if os.path.exists(compressed_file_path):
+        os.remove(compressed_file_path)
+    fo_out = bz2.BZ2File(compressed_file_path, "wb")
+    for file_path in file_paths:
+        g_uncompressed_size += get_file_size(file_path)
+        data = read_file(file_path)
         fo_out.write(data)
     fo_out.close()
-    g_compressed_size += get_file_size(file_name)
+    g_compressed_size += get_file_size(compressed_file_path)
 
-def read_bzip2(file_name):
-    fo = bz2.BZ2File(file_name, "rb")
-    data = fo.read()
-    fo.close()
-    return data
+# given day in YYYY-MM-DD format, get all uncompressed file names for that day
+def uncompressed_files_for_day(ymd):
+    desired_file_prefix = "access_log-" + ymd
+    parts = ymd.split("-")
+    ym = parts[0] + "-" + parts[1]
+    assert 7 == len(ym)
+    d = os.path.join(UNCOMPRESSED_LOGS_DIR, ym)
+    all_files = os.listdir(d)
+    files_for_day = []
+    for f in all_files:
+        if f.startswith(desired_file_prefix):
+            file_path = os.path.join(d, f)
+            files_for_day.append(file_path)
+    return files_for_day
 
-def append_to_compressed(file_name, files):
-    global g_uncompressed_size, g_compressed_size
-    print("Appending to compressed file %s" % file_name)
-    assert os.path.exists(file_name)
-    g_compressed_size -= get_file_size(file_name)
-    #shutil.copy(file_name, file_name + ".orig.bz2")
-    file_name_tmp = file_name + ".tmp"
-    fo_out = bz2.BZ2File(file_name_tmp, "wb")
-    data = read_bzip2(file_name)
-    fo_out.write(data)
-    for f in files:
-        g_uncompressed_size += get_file_size(f)
-        data = file(f, "rb").read()
-        fo_out.write(data)
-    fo_out.close()
-    shutil.move(file_name_tmp, file_name)
-    g_compressed_size += get_file_size(file_name)
-
-def concat_and_compress_files(day, files):
-    file_name = compressed_file_name_local(day)
-    if os.path.exists(file_name):
-        append_to_compressed(file_name, files)
-    else:
-        new_compressed(file_name, files)
+def compress_files_for_one_day(ymd):
+    compressed_file_path = compressed_file_path_local(ymd)
+    file_paths = uncompressed_files_for_day(ymd)
+    compress_files(compressed_file_path, file_paths)
 
 def delete_keys_from_s3(keys):
     for key in keys:
         print("Deleting %s" % key.name)
         key.delete()
 
-def file_downloaded(file_name, size):
+def file_downloaded(file_name, expected_size):
     if not os.path.exists(file_name): return False
     file_size = get_file_size(file_name)
-    return size == file_size
+    return expected_size == file_size
 
 g_total_deleted = 0
 g_total_deleted_size = 0
@@ -167,13 +169,14 @@ g_compressed_size = 0
 # to screwy permissions, it deletes it. Sometimes s3 listing claims a file exists
 # if it doesn't, in which case we can fix it by deleting it (no, really)
 # Returns True if had to delete a file
-def dl_or_delete_forbidden(key, file_name):
+def dl_or_delete_forbidden(key, file_path):
     global g_total_deleted, g_total_deleted_size
     try:
-        key.get_contents_to_filename(file_name)
+        key.get_contents_to_filename(file_path)
     except S3ResponseError, err:
         if err.status in [403, 404]:
-            print("*** Deleting %s of size %d" % (key.name, key.size))
+            print("*** Deleting s3 file %s of size %d" % (key.name, key.size))
+            os.remove(file_path)
             key.delete()
             g_total_deleted += 1
             g_total_deleted_size += key.size
@@ -182,47 +185,62 @@ def dl_or_delete_forbidden(key, file_name):
     return False
 
 def process_day(day_keys):
-    day = day_from_name(day_keys[0].name)
-    print("Processing %s, files: %d" % (day, len(day_keys)))
-    files = []
+    ymd = year_month_day_from_name(day_keys[0].name)
+    print("Processing %s, files: %d" % (ymd, len(day_keys)))
     for key in day_keys:
-        file_name = file_name_from_s3_name(key.name)
-        if file_downloaded(file_name, key.size):
+        file_name = uncompressed_file_path(key.name)
+        file_size = key.size
+        if file_downloaded(file_name, file_size):
             print("'%s' already downloaded as '%s'" % (key.name, file_name))            
         else:
             print("downloading '%s' to '%s'" % (key.name, file_name))
-        deleted = dl_or_delete_forbidden(key, file_name)
-        if not deleted:
-            files.append(file_name)
-    concat_and_compress_files(day, files)
-    file_name = compressed_file_name_local(day)
-    s3name = compressed_file_name_s3(day)
-    s3UploadPrivate(file_name, s3name)
+        dl_or_delete_forbidden(key, file_name)
+    compress_files_for_one_day(ymd)
+    compressed_file_path = compressed_file_path_local(ymd)
+    s3name = compressed_file_name_s3(ymd)
+    print("Uploading '%s' as '%s'" % (compressed_file_path, s3name))
+    s3UploadPrivate(compressed_file_path, s3name)
     delete_keys_from_s3(day_keys)
 
 def tests():
     s3name = logsDir + "access_log-2008-09-21-23-45-40-B7CE947BBC3F87B2"
-    assert day_from_name(s3name) == "2008-09-21"
-    expected_dir = os.path.join(uncompressed_logs_dir(), "access_log-2008-09-21-23-45-40-B7CE947BBC3F87B2")
-    assert file_name_from_s3_name(s3name) == expected_dir
+    assert year_month_day_from_name(s3name) == "2008-09-21"
+    expected_path = os.path.join(UNCOMPRESSED_LOGS_DIR, "2008-09", "access_log-2008-09-21-23-45-40-B7CE947BBC3F87B2")
+    real_path = uncompressed_file_path(s3name)
+    assert real_path == expected_path
 
 def compress_s3_logs():
-    ensure_dir_exists(compressed_logs_dir())
-    ensure_dir_exists(uncompressed_logs_dir())
+    ensure_dir_exists(COMPRESSED_LOGS_DIR)
+    ensure_dir_exists(UNCOMPRESSED_LOGS_DIR)
 
     b = s3Bucket()
-    limit = 999
+    limit = 9999
     all_keys = b.list(logsDir + "access_log-")
     for day_keys in gen_files_for_day(all_keys):
         process_day(day_keys)
         limit -= 1
         if limit <= 0:
             break
-    print("Had to delete %d files of total size %d bytes" % (g_total_deleted, g_total_deleted_size))
-    if 0 != g_uncompressed_size:
-        saved = g_uncompressed_size - g_compressed_size
-        saved_percent = float(100) * float(saved) / float(g_uncompressed_size)
-        print("Compressed size: %d, uncompressed size: %d, saving: %d which is %.2f %%" % (g_compressed_size, g_uncompressed_size, saved, saved_percent))
+    if g_total_deleted > 0:
+        print("Had to delete %d files of total size %d bytes" % (g_total_deleted, g_total_deleted_size))
+
+def t():
+    ensure_dir_exists(COMPRESSED_LOGS_DIR)
+    ensure_dir_exists(UNCOMPRESSED_LOGS_DIR)
+
+    b = s3Bucket()
+    limit = 1
+    all_keys = b.list(logsDir + "access_log-")
+    for k in all_keys:
+        print("%6d, %s" % (k.size, k.name))
+
+def compress_days():
+    for d in range(30):
+        ymd = "2009-06-%02d" % (d + 1)
+        compress_files_for_one_day(ymd)
+    for d in range(16):
+        ymd = "2009-07-%02d" % (d + 1)
+        compress_files_for_one_day(ymd)
 
 def main():
     tests()
