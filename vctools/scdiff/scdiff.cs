@@ -116,10 +116,10 @@ namespace Scdiff
 
         public void run()
         {
-            tempDir = System.Environment.GetEnvironmentVariable("TEMP");
+            tempDir = System.IO.Path.GetTempPath();
             if (null==tempDir)
             {
-                Console.WriteLine("Couldn't obtain temporary directory (result of 'echo %TEMP%'). Can't continue.");
+                Console.WriteLine("Couldn't obtain temporary directory (System.IO.Path.GetTempPath() returned null). Can't continue.");
                 return;
             }
             Console.WriteLine("Using temporary directory: {0}", tempDir);
