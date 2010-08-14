@@ -1,0 +1,55 @@
+﻿<Window x:Class="Bend.FindAndReplace"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="FindAndReplace" Width="500" 
+        FocusManager.FocusedElement="{Binding ElementName=FindText}"        
+        WindowStyle="None" ShowInTaskbar="False" AllowsTransparency="True" Background="Transparent" SizeToContent="Height" PreviewKeyDown="Window_PreviewKeyDown" IsVisibleChanged="Window_IsVisibleChanged" WindowStartupLocation="CenterOwner">
+    <Border Width="Auto" Height = "Auto">
+        <Border.BorderBrush>
+            <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                <LinearGradientBrush.GradientStops>
+                    <GradientStopCollection>
+                        <GradientStop Color="#E7E3DE" Offset="0"/>
+                        <GradientStop Color="#F7EFEF" Offset="1"/>
+                    </GradientStopCollection>
+                </LinearGradientBrush.GradientStops>
+            </LinearGradientBrush>
+        </Border.BorderBrush>
+        <Border.BitmapEffect>
+            <DropShadowBitmapEffect x:Name="ShadowBorder" Color="Black" Direction="320"  
+                                ShadowDepth="5" 
+                                Softness="1" 
+                                Opacity="0.5"/>
+        </Border.BitmapEffect>        
+        <StackPanel Margin="20" Background="WhiteSmoke">
+            <Grid>
+                <Grid Margin="0,0,55,0" MouseDown="TitleBar_PreviewMouseDown" Background="WhiteSmoke"></Grid>
+                <Label HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,0,15,0" Foreground="Red" Background="WhiteSmoke" MouseDown="Close_MouseDown" FontWeight="Regular" FontFamily="Segoe UI">close</Label>
+            </Grid>            
+            <Grid>
+                <Canvas VerticalAlignment="Stretch" Width="10" Background="#EF2A4579" HorizontalAlignment="Left" MouseDown="TitleBar_PreviewMouseDown"></Canvas>
+                <StackPanel Margin="30,0,15,0" MinHeight="46" Width="320" HorizontalAlignment="Left">
+                    <TextBlock  Name="MessageTitle" Text="FIND AND REPLACE" FontSize="16" FontWeight="ExtraLight" FontFamily="Segoe UI" VerticalAlignment="Top" TextWrapping="Wrap">
+                    </TextBlock>
+                    <TextBlock Margin="0,10,0,0" Text="find match" FontSize="14" FontWeight="Regular" FontFamily="Segoe UI" VerticalAlignment="Top" TextWrapping="Wrap"/>
+                    <ComboBox IsTabStop="True" TabIndex="0" Name="FindText" Margin="0,5,0,0" FontSize="14" FontWeight="Regular" FontFamily="Segoe UI" IsEditable="True" SelectionChanged="Find_Changed" KeyUp="Find_KeyUp" IsTextSearchCaseSensitive="True"></ComboBox>
+                    <TextBlock Margin="0,5,0,0" Text="replace with string" FontSize="14" FontWeight="Regular" FontFamily="Segoe UI" VerticalAlignment="Top" TextWrapping="Wrap"/>
+                    <ComboBox Name="ReplaceText" Margin="0,5,0,0" FontSize="14" FontWeight="Regular" FontFamily="Segoe UI" IsEditable="True" KeyUp="Replace_KeyUp" IsTextSearchCaseSensitive="True"></ComboBox>                    
+                </StackPanel>
+                <StackPanel HorizontalAlignment="Right" Margin="0,50,15,0">
+                    <CheckBox Name="MatchCase" Margin="5,5,0,0" VerticalContentAlignment="Center" FontSize="10" FontWeight="Bold" FontFamily="Segoe UI" IsTabStop="True" KeyUp="MoveToNext_KeyDown" Checked="FindOptionsChanged" Unchecked="FindOptionsChanged">MATCH CASE</CheckBox>
+                    <CheckBox Name="RegexFind" Margin="5,10,0,0" VerticalContentAlignment="Center" FontSize="10" FontWeight="Bold" FontFamily="Segoe UI" IsTabStop="True" KeyUp="MoveToNext_KeyDown" Checked="FindOptionsChanged" Unchecked="FindOptionsChanged">REGEX FIND</CheckBox>
+                    <CheckBox Name="replaceall" Margin="5,10,0,0" VerticalContentAlignment="Center" FontSize="10" FontWeight="Bold" FontFamily="Segoe UI" IsTabStop="True" KeyUp="MoveToNext_KeyDown">REPLACE ALL</CheckBox>
+                </StackPanel>
+            </Grid>
+            <Grid Margin="0,5,0,0">                
+                <WrapPanel HorizontalAlignment="Right" Margin="0,0,15,0">
+                    <Button Width="70" Height="22" FontSize="10" FontWeight="Bold" FontFamily="Segoe UI"  Margin="0,10,10,12" Click="Find_Click">FIND</Button>
+                    <Button Width="70" Height="22" FontSize="10" FontWeight="Bold" FontFamily="Segoe UI"  Margin="0,10,10,12" Click="Replace_Click">REPLACE</Button>
+                    <Button Width="70" Height="22" FontSize="10" FontWeight="Bold" FontFamily="Segoe UI"  Margin="0,10,0,12" PreviewMouseDown="Close_MouseDown">CANCEL</Button>                
+                </WrapPanel>
+            </Grid>
+        </StackPanel>
+    </Border>
+</Window>
+

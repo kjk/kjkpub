@@ -1,0 +1,29 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 9.00
+# Visual Studio 2005
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "EfTidyNet", "EfTidyNet\EfTidyNet.vcproj", "{73789E3D-B9BD-49BD-9474-1B1E6A4BE09E}"
+	ProjectSection(ProjectDependencies) = postProject
+		{9D8143C8-7CFF-4F45-A90C-A7041A152D0C} = {9D8143C8-7CFF-4F45-A90C-A7041A152D0C}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TidyMyLib", "TidyMyLib\TidyMyLib.vcproj", "{9D8143C8-7CFF-4F45-A90C-A7041A152D0C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{73789E3D-B9BD-49BD-9474-1B1E6A4BE09E}.Debug|Win32.ActiveCfg = Debug|Win32
+		{73789E3D-B9BD-49BD-9474-1B1E6A4BE09E}.Debug|Win32.Build.0 = Debug|Win32
+		{73789E3D-B9BD-49BD-9474-1B1E6A4BE09E}.Release|Win32.ActiveCfg = Release|Win32
+		{73789E3D-B9BD-49BD-9474-1B1E6A4BE09E}.Release|Win32.Build.0 = Release|Win32
+		{9D8143C8-7CFF-4F45-A90C-A7041A152D0C}.Debug|Win32.ActiveCfg = Debug|Win32
+		{9D8143C8-7CFF-4F45-A90C-A7041A152D0C}.Debug|Win32.Build.0 = Debug|Win32
+		{9D8143C8-7CFF-4F45-A90C-A7041A152D0C}.Release|Win32.ActiveCfg = Release|Win32
+		{9D8143C8-7CFF-4F45-A90C-A7041A152D0C}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
