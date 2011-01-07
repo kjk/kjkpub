@@ -60,7 +60,7 @@ namespace DotNetDllSummary
             return s;
         }
 
-        public void DumpField(FieldDefinition field)
+        public void ProcessField(FieldDefinition field)
         {
             if (!field.IsPublic)
                 return;
@@ -72,17 +72,17 @@ namespace DotNetDllSummary
             System.Console.WriteLine(s);
         }
 
-        public void DumpTypeFields(TypeDefinition type)
+        public void ProcessTypeFields(TypeDefinition type)
         {
             if (!type.HasFields)
                 return;
             foreach (FieldDefinition f in type.Fields)
             {
-                DumpField(f);
+                ProcessField(f);
             }
         }
 
-        public void DumpEvent(EventDefinition e)
+        public void ProcessEvent(EventDefinition e)
         {
             if (e.IsSpecialName)
                 return;
@@ -90,17 +90,17 @@ namespace DotNetDllSummary
             System.Console.WriteLine(s);
         }
 
-        public void DumpTypeEvents(TypeDefinition type)
+        public void ProcessTypeEvents(TypeDefinition type)
         {
             if (!type.HasEvents)
                 return;
             foreach (EventDefinition e in type.Events)
             {
-                DumpEvent(e);
+                ProcessEvent(e);
             }
         }
 
-        public void DumpEnum(TypeDefinition type)
+        public void ProcessEnum(TypeDefinition type)
         {
             if (IsIgnoredNamespace(type.FullName))
                 return;
@@ -110,7 +110,7 @@ namespace DotNetDllSummary
                 s = s + " : " + ShortenTypes(type.BaseType.FullName);
             }
             Console.WriteLine(s);
-            DumpTypeFields(type);
+            ProcessTypeFields(type);
         }
 
         public string GetMethodName(MethodDefinition m)
@@ -159,7 +159,7 @@ namespace DotNetDllSummary
             Console.WriteLine(" M:" + GetMethodName(m));
         }
 
-        public void DumpTypeMethods(TypeDefinition type)
+        public void ProcessTypeMethods(TypeDefinition type)
         {
             if (!type.HasMethods)
                 return;
@@ -177,7 +177,7 @@ namespace DotNetDllSummary
             return s;
         }
 
-        public void DumpTypeProperties(TypeDefinition type)
+        public void ProcessTypeProperties(TypeDefinition type)
         {
             if (!type.HasProperties)
                 return;
@@ -204,64 +204,64 @@ namespace DotNetDllSummary
             return s;
         }
 
-        public void DumpClass(TypeDefinition type)
+        public void ProcessClass(TypeDefinition type)
         {
             if (IsIgnoredNamespace(type.FullName))
                 return;
             Console.WriteLine("C:" + GetTypeName(type));
-            DumpTypeFields(type);
-            DumpTypeProperties(type);
-            DumpTypeEvents(type);
-            DumpTypeMethods(type);
+            ProcessTypeFields(type);
+            ProcessTypeProperties(type);
+            ProcessTypeEvents(type);
+            ProcessTypeMethods(type);
         }
 
-        public void DumpValueType(TypeDefinition type)
+        public void ProcessValueType(TypeDefinition type)
         {
             if (IsIgnoredNamespace(type.FullName))
                 return;
             Console.WriteLine("S:" + GetTypeName(type));
-            DumpTypeFields(type);
-            DumpTypeProperties(type);
-            DumpTypeMethods(type);
+            ProcessTypeFields(type);
+            ProcessTypeProperties(type);
+            ProcessTypeMethods(type);
         }
 
-        public void DumpInterface(TypeDefinition type)
+        public void ProcessInterface(TypeDefinition type)
         {
             if (IsIgnoredNamespace(type.FullName))
                 return;
             Debug.Assert(type.BaseType == null);
             Debug.Assert(!type.HasFields);
             Console.WriteLine("I:" + type.FullName);
-            DumpTypeProperties(type);
-            DumpTypeMethods(type);
+            ProcessTypeProperties(type);
+            ProcessTypeMethods(type);
         }
 
-        public void DumpType(TypeDefinition type)
+        public void ProcessType(TypeDefinition type)
         {
             if (!type.IsPublic)
                 return;
             if (type.IsEnum)
             {
-                DumpEnum(type);
+                ProcessEnum(type);
                 return;
             }
             if (type.IsValueType)
             {
-                DumpValueType(type);
+                ProcessValueType(type);
                 return;
             }
             if (type.IsClass)
             {
-                DumpClass(type);
+                ProcessClass(type);
                 return;
             }
             if (type.IsInterface)
             {
-                DumpInterface(type);
+                ProcessInterface(type);
                 return;
             }
             Console.WriteLine("UNKOWN TYPE:" + type.FullName);
-            DumpTypeMethods(type);
+            ProcessTypeMethods(type);
         }
 
         public void ProcessDll(string path)
@@ -272,7 +272,7 @@ namespace DotNetDllSummary
                 ModuleDefinition module = ModuleDefinition.ReadModule(path);
                 foreach (TypeDefinition type in module.Types)
                 {
-                    DumpType(type);
+                    ProcessType(type);
                 }
             }
             catch (BadImageFormatException)
@@ -281,7 +281,7 @@ namespace DotNetDllSummary
             }
         }
 
-        public void SummaryForDir(string dir)
+        public void DoDir(string dir)
         {
             var di = new DirectoryInfo(dir);
             foreach (var fi in di.EnumerateFiles())
@@ -294,13 +294,27 @@ namespace DotNetDllSummary
         }
     }
 
+    class GenerateHtml
+    {
+        public void DoDir(string dir)
+        {
+            var di = new DirectoryInfo(dir);
+            foreach (var fi in di.EnumerateFiles())
+            {
+                if (fi.Name.EndsWith(".dll"))
+                {
+                    ProcessDll(Path.Combine(dir, fi.Name));
+                }
+            }
+        }
+    }
     class Program
     {
         static void Main(string[] args)
         {
-            var gs = new GenerateSummary();
-            gs.SummaryForDir(@"c:\Windows\Microsoft.NET\Framework\v4.0.30319");
-            gs.SummaryForDir(@"c:\Windows\Microsoft.NET\Framework\v4.0.30319\WPF");
+            var gs = new GenerateHtml();
+            gs.DoDir(@"c:\Windows\Microsoft.NET\Framework\v4.0.30319");
+            gs.DoDir(@"c:\Windows\Microsoft.NET\Framework\v4.0.30319\WPF");
         }
     }
 }
