@@ -324,8 +324,40 @@ namespace DotNetDllSummary
             return true;
         }
 
+        Dictionary<string, bool> enums = new Dictionary<string, bool>(1024 * 2);
+        Dictionary<string, bool> valueTypes = new Dictionary<string, bool>(512);
+        Dictionary<string, bool> classes = new Dictionary<string, bool>(1024 * 10);
+        Dictionary<string, bool> interfaces = new Dictionary<string, bool>(1024);
+
+        void RegisterType(TypeDefinition type)
+        {
+            if (!type.IsPublic)
+                return;
+            if (type.IsEnum)
+                enums[type.FullName] = true;
+            else if (type.IsValueType)
+                valueTypes[type.FullName] = true;
+            else if (type.IsClass)
+                classes[type.FullName] = true;
+            else if (type.IsInterface)
+                interfaces[type.FullName] = true;
+        }
+
+        public void DumpCounts()
+        {
+            int n = enums.Count;
+            Console.WriteLine("Enums:       " + n.ToString());
+            n = valueTypes.Count;
+            Console.WriteLine("Value types: " + n.ToString());
+            n = classes.Count;
+            Console.WriteLine("Classes    : " + n.ToString());
+            n = interfaces.Count;
+            Console.WriteLine("Interfaces : " + n.ToString());
+        }
+
         public void ProcessType(TypeDefinition type)
         {
+            RegisterType(type);
             if (!type.IsPublic)
                 return;
             if (ProcessEnum(type))
@@ -372,9 +404,10 @@ namespace DotNetDllSummary
     {
         static void Main(string[] args)
         {
-            var gs = new GenerateHtml();
-            gs.DoDir(@"c:\Windows\Microsoft.NET\Framework\v4.0.30319");
-            gs.DoDir(@"c:\Windows\Microsoft.NET\Framework\v4.0.30319\WPF");
+            var o = new GenerateHtml();
+            o.DoDir(@"c:\Windows\Microsoft.NET\Framework\v4.0.30319");
+            o.DoDir(@"c:\Windows\Microsoft.NET\Framework\v4.0.30319\WPF");
+            o.DumpCounts();
         }
     }
 }
