@@ -324,42 +324,69 @@ namespace DotNetDllSummary
             return true;
         }
 
-        Dictionary<string, bool> enums = new Dictionary<string, bool>(1024 * 2);
-        Dictionary<string, bool> valueTypes = new Dictionary<string, bool>(512);
-        Dictionary<string, bool> classes = new Dictionary<string, bool>(1024 * 10);
-        Dictionary<string, bool> interfaces = new Dictionary<string, bool>(1024);
+        class TypeInfo
+        {
+            public TypeDefinition type;
+            public string name { get { return type.FullName; } }
+            public List<TypeInfo> returnedBy = new List<TypeInfo>();
+            public List<TypeInfo> argumentTo = new List<TypeInfo>();
+        }
+
+        Dictionary<string, TypeInfo> types = new Dictionary<string, TypeInfo>(1024 * 14);
 
         void RegisterType(TypeDefinition type)
         {
-            if (!type.IsPublic)
-                return;
-            if (type.IsEnum)
-                enums[type.FullName] = true;
-            else if (type.IsValueType)
-                valueTypes[type.FullName] = true;
-            else if (type.IsClass)
-                classes[type.FullName] = true;
-            else if (type.IsInterface)
-                interfaces[type.FullName] = true;
+            TypeInfo ti;
+            var s = type.FullName;
+            if (types.TryGetValue(s, out ti))
+            {
+                Debug.Assert((ti.type == null) || (ti.type.FullName == type.FullName));
+                ti.type = type;
+            }
+            else
+            {
+                ti = new TypeInfo{ type = type };
+                types[s] = ti;
+            }
+            // TODO: use method arguments and return values to fill
+            // TypeInfo.returnedBy and TypeInfo.argumentTo
+        }
+
+        Tuple<int, int, int, int> GetTypeCounts()
+        {
+            int enums = 0, valueTypes = 0, classes = 0, interfaces = 0;
+            foreach (var ti in types.Values)
+            {
+                if (ti.type.IsEnum)
+                    enums++;
+                else if (ti.type.IsValueType)
+                    valueTypes++;
+                else if (ti.type.IsClass)
+                    classes++;
+                else if (ti.type.IsInterface)
+                    interfaces++;
+            }
+            return new Tuple<int, int, int, int>(enums, valueTypes, classes, interfaces);
         }
 
         public void DumpCounts()
         {
-            int n = enums.Count;
+            var counts = GetTypeCounts();
+            int n = counts.Item1;
             Console.WriteLine("Enums:       " + n.ToString());
-            n = valueTypes.Count;
+            n = counts.Item2;
             Console.WriteLine("Value types: " + n.ToString());
-            n = classes.Count;
+            n = counts.Item3;
             Console.WriteLine("Classes    : " + n.ToString());
-            n = interfaces.Count;
+            n = counts.Item4;
             Console.WriteLine("Interfaces : " + n.ToString());
         }
 
         public void ProcessType(TypeDefinition type)
         {
-            RegisterType(type);
             if (!type.IsPublic)
                 return;
+            RegisterType(type);
             if (ProcessEnum(type))
                 return;
             if (ProcessValueType(type))
@@ -373,7 +400,7 @@ namespace DotNetDllSummary
 
         public void ProcessDll(string path)
         {
-            System.Console.WriteLine("DLL: " + path);
+            //System.Console.WriteLine("DLL: " + path);
             try
             {
                 ModuleDefinition module = ModuleDefinition.ReadModule(path);
