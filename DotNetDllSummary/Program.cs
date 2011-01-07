@@ -100,10 +100,12 @@ namespace DotNetDllSummary
             }
         }
 
-        public void ProcessEnum(TypeDefinition type)
+        public bool ProcessEnum(TypeDefinition type)
         {
+            if (!type.IsEnum)
+                return false;
             if (IsIgnoredNamespace(type.FullName))
-                return;
+                return true;
             var s = "E:" + type.FullName;
             if (type.BaseType != null)
             {
@@ -111,6 +113,7 @@ namespace DotNetDllSummary
             }
             Console.WriteLine(s);
             ProcessTypeFields(type);
+            return true;
         }
 
         public string GetMethodName(MethodDefinition m)
@@ -141,7 +144,7 @@ namespace DotNetDllSummary
             return s + ")";
         }
 
-        public void DumpMethod(MethodDefinition m)
+        public void ProcessMethod(MethodDefinition m)
         {
             if (m.IsPrivate)
                 return;
@@ -165,7 +168,7 @@ namespace DotNetDllSummary
                 return;
             foreach (var m in type.Methods)
             {
-                DumpMethod(m);
+                ProcessMethod(m);
             }
         }
 
@@ -204,62 +207,59 @@ namespace DotNetDllSummary
             return s;
         }
 
-        public void ProcessClass(TypeDefinition type)
+        public bool ProcessClass(TypeDefinition type)
         {
+            if (!type.IsClass)
+                return false;
             if (IsIgnoredNamespace(type.FullName))
-                return;
+                return true;
             Console.WriteLine("C:" + GetTypeName(type));
             ProcessTypeFields(type);
             ProcessTypeProperties(type);
             ProcessTypeEvents(type);
             ProcessTypeMethods(type);
+            return true;
         }
 
-        public void ProcessValueType(TypeDefinition type)
+        public bool ProcessValueType(TypeDefinition type)
         {
+            if (!type.IsValueType)
+                return false;
             if (IsIgnoredNamespace(type.FullName))
-                return;
+                return true;
             Console.WriteLine("S:" + GetTypeName(type));
             ProcessTypeFields(type);
             ProcessTypeProperties(type);
             ProcessTypeMethods(type);
+            return true;
         }
 
-        public void ProcessInterface(TypeDefinition type)
+        public bool ProcessInterface(TypeDefinition type)
         {
+            if (!type.IsInterface)
+                return false;
             if (IsIgnoredNamespace(type.FullName))
-                return;
+                return true;
             Debug.Assert(type.BaseType == null);
             Debug.Assert(!type.HasFields);
             Console.WriteLine("I:" + type.FullName);
             ProcessTypeProperties(type);
             ProcessTypeMethods(type);
+            return true;
         }
 
         public void ProcessType(TypeDefinition type)
         {
             if (!type.IsPublic)
                 return;
-            if (type.IsEnum)
-            {
-                ProcessEnum(type);
+            if (ProcessEnum(type))
                 return;
-            }
-            if (type.IsValueType)
-            {
-                ProcessValueType(type);
+            if (ProcessValueType(type))
                 return;
-            }
-            if (type.IsClass)
-            {
-                ProcessClass(type);
+            if (ProcessClass(type))
                 return;
-            }
-            if (type.IsInterface)
-            {
-                ProcessInterface(type);
+            if (ProcessInterface(type))
                 return;
-            }
             Console.WriteLine("UNKOWN TYPE:" + type.FullName);
             ProcessTypeMethods(type);
         }
@@ -296,6 +296,66 @@ namespace DotNetDllSummary
 
     class GenerateHtml
     {
+        bool ProcessEnum(TypeDefinition type)
+        {
+            if (!type.IsEnum)
+                return false;
+            return true;
+        }
+
+        bool ProcessValueType(TypeDefinition type)
+        {
+            if (!type.IsValueType)
+                return false;
+            return true;
+        }
+
+        bool ProcessClass(TypeDefinition type)
+        {
+            if (!type.IsClass)
+                return false;
+            return true;
+        }
+
+        bool ProcessInterface(TypeDefinition type)
+        {
+            if (!type.IsInterface)
+                return false;
+            return true;
+        }
+
+        public void ProcessType(TypeDefinition type)
+        {
+            if (!type.IsPublic)
+                return;
+            if (ProcessEnum(type))
+                return;
+            if (ProcessValueType(type))
+                return;
+            if (ProcessClass(type))
+                return;
+            if (ProcessInterface(type))
+                return;
+            Debug.Assert(false);
+        }
+
+        public void ProcessDll(string path)
+        {
+            System.Console.WriteLine("DLL: " + path);
+            try
+            {
+                ModuleDefinition module = ModuleDefinition.ReadModule(path);
+                foreach (TypeDefinition type in module.Types)
+                {
+                    ProcessType(type);
+                }
+            }
+            catch (BadImageFormatException)
+            {
+                return;
+            }
+        }
+
         public void DoDir(string dir)
         {
             var di = new DirectoryInfo(dir);
