@@ -403,7 +403,8 @@ JustDiff:
             process.StartInfo.UseShellExecute = true;
             process.StartInfo.RedirectStandardOutput = false;
             process.StartInfo.FileName = diffProgram_;
-            process.StartInfo.Arguments = String.Format("{0} {1}", tempDirBefore, tempDirAfter);
+            // TODO: only escape tempDirBefore and tempDirAfter if necessary
+            process.StartInfo.Arguments = String.Format("\"{0}\" \"{1}\"", tempDirBefore, tempDirAfter);
             Console.WriteLine("Executing {0} {1}", process.StartInfo.FileName, process.StartInfo.Arguments);
 
             try 
@@ -517,7 +518,8 @@ JustDiff:
             process.StartInfo.UseShellExecute = true;
             process.StartInfo.RedirectStandardOutput = false;
             process.StartInfo.FileName = diffProgram_;
-            process.StartInfo.Arguments = String.Format("{0} {1}", tempDirBefore, tempDirAfter);
+            // TODO: only escape tempDirBefore and tempDirAfter if necessary
+            process.StartInfo.Arguments = String.Format("\"{0}\" \"{1}\"", tempDirBefore, tempDirAfter);
             Console.WriteLine("Executing {0} {1}", process.StartInfo.FileName, process.StartInfo.Arguments);
 
             try
