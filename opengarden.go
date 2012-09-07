@@ -7,10 +7,17 @@ package main
 // if you don't have brew, install Go manually: http://golang.org/doc/install
 // and then run "go run opengarden.go"
 //
-// Notes: this is a random solution, because I was lazy. A real solution would
-// do backtracking
-// I don't initialize the random seed, so it'll always produce the same result
+// Notes: there are 2 solutions, both far from perfect
 //
+// Random solution looks for answer generating random answers and trying them
+// (although, as implemented, it's only pseudo-random, as I don't initialize the
+// random seed).
+//
+// Exhaustive search looks at all possibilities.
+//
+// I'm sure there's a more clever way that generates potential solutions 
+// exhaustively and backtracts
+
 import (
 	"fmt"
 	"math/rand"
@@ -22,76 +29,65 @@ var population = [...]int{18897109, 12828837, 9461105, 6371773, 5965343, 5946800
 	2142508, 2134411}
 
 const desired = 100000000
+const maxBits = len(population)
+
+// a solution can be represented as an int where if n-th bit is set, the n-th
+// value in population array belongs to the solution.
+// So all solutions are in the range [0...maxSolution]
+var maxSolution int = (1 << uint(maxBits)) - 1
 
 func isBitSet(n int, bit int) bool {
 	return n&(1<<uint(bit)) != 0
 }
 
-func setBit(n int, bit int) int {
-	return n | (1 << uint(bit))
-}
-
-func pickRandom(picked *int) int {
-	bf := *picked
-	for {
-		// TODO: could be faster by picking from unpicked
-		n := rand.Intn(len(population))
-		if isBitSet(bf, n) {
-			continue // has already been picked
-		}
-		*picked = setBit(bf, n) // mark as picked
-		return n
-	}
-	return 0
-}
-
-func tryRandom(solution []int) int {
-	var picked int = 0
-	remaining := desired
-	for {
-		pickedIdx := pickRandom(&picked)
-		remaining -= population[pickedIdx]
-		if 0 == remaining {
-			return picked
-		}
-		if remaining < 0 {
-			return 0
-		}
-	}
-	return 0
-}
-
 func printSolution(solution int) {
-	fmt.Print("Solution: ")
+	fmt.Printf("Solution: 0x%xd\n", solution)
 	total := 0
-	for i := 0; i < len(population); i++ {
+	for i := 0; i < maxBits; i++ {
 		if isBitSet(solution, i) {
 			n := population[i]
 			total += n
-			fmt.Printf("%d, ", n)
+			fmt.Printf("  pos: %02d, population: %d \n", i, n)
 		}
 	}
 	fmt.Printf("\nTotal: %d\n", total)
 }
 
+func printIfValid(n int) bool {
+	remaining := desired
+	for bit := 0; bit < maxBits; bit++ {
+		if isBitSet(n, bit) {
+			remaining -= population[bit]
+			if remaining < 0 {
+				return false
+			}
+		}
+	}
+	if 0 == remaining {
+		printSolution(n)
+		return true
+	}
+	return false
+}
+
 func random() {
-	solution := make([]int, len(population))
-	rounds := 0
 	for {
-		rounds++
-		if rounds%40000 == 0 {
-			fmt.Printf("random(): %d rounds\n", rounds)
-		}
-		if rounds%10000000 == 0 {
-			break
-		}
-		if solution := tryRandom(solution); solution != 0 {
-			printSolution(solution)
+		solution := rand.Intn(maxSolution + 1)
+		if valid := printIfValid(solution); valid {
 			return
 		}
 	}
 }
 
+func getMeAllOfThem() {
+	for i := maxSolution; i > 0; i-- {
+		printIfValid(i)
+	}
+}
+
 func main() {
+	fmt.Printf("Running random search:\n")
 	random()
+	fmt.Printf("Running exhaustive, linear search:\n")
+	getMeAllOfThem()
 }
