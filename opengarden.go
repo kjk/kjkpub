@@ -1,11 +1,25 @@
 package main
 
+// To run on mac, if you have brew installed:
+// brew install go
+// go run opengarden.go
+//
+// if you don't have brew, install Go manually: http://golang.org/doc/install
+// and then run "go run opengarden.go"
+//
+// Notes: this is a random solution, because I was lazy. A real solution would
+// do backtracking
+// I don't initialize the random seed, so it'll always produce the same result
+//
 import (
 	"fmt"
 	"math/rand"
 )
 
-var population = [...]int{18897109, 12828837, 9461105, 6371773, 5965343, 5946800, 5582170, 5564635, 5268860, 4552402, 4335391, 4296250, 4224851, 4192887, 3439809, 3279833, 3095313, 2812896, 2783243, 2710489, 2543482, 2356285, 2226009, 2149127, 2142508, 2134411}
+var population = [...]int{18897109, 12828837, 9461105, 6371773, 5965343, 5946800,
+	5582170, 5564635, 5268860, 4552402, 4335391, 4296250, 4224851, 4192887, 3439809,
+	3279833, 3095313, 2812896, 2783243, 2710489, 2543482, 2356285, 2226009, 2149127,
+	2142508, 2134411}
 
 const desired = 100000000
 
@@ -20,6 +34,7 @@ func setBit(n int, bit int) int {
 func pickRandom(picked *int) int {
 	bf := *picked
 	for {
+		// TODO: could be faster by picking from unpicked
 		n := rand.Intn(len(population))
 		if isBitSet(bf, n) {
 			continue // has already been picked
@@ -48,12 +63,15 @@ func tryRandom(solution []int) int {
 
 func printSolution(solution int) {
 	fmt.Print("Solution: ")
+	total := 0
 	for i := 0; i < len(population); i++ {
 		if isBitSet(solution, i) {
-			fmt.Printf("%d, ", population[i])
+			n := population[i]
+			total += n
+			fmt.Printf("%d, ", n)
 		}
 	}
-	fmt.Print("\n")
+	fmt.Printf("\nTotal: %d\n", total)
 }
 
 func random() {
