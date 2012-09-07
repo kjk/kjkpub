@@ -40,7 +40,7 @@ func pickRandom(picked *int) int {
 			continue // has already been picked
 		}
 		*picked = setBit(bf, n) // mark as picked
-		return int(n)
+		return n
 	}
 	return 0
 }
