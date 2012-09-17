@@ -26,10 +26,10 @@ type Node struct {
 const nodes_per_bucket = 1024 * 1024
 
 var (
-	all_nodes    [][]Node = make([][]Node, 0)
-	curr_nodes   []Node
-	nodes_left   int      = 0
-	curr_node    int      = 0
+	all_nodes  [][]Node = make([][]Node, 0)
+	curr_nodes []Node
+	nodes_left int = 0
+	curr_node  int = 0
 )
 
 func allocNode(item int, left, right *Node) *Node {

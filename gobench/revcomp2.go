@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"time"
 )
 
 var comptbl = [256]uint8{
@@ -30,6 +31,7 @@ var comptbl = [256]uint8{
 	'B': 'V', 'b': 'V',
 	'N': 'N', 'n': 'N',
 }
+
 // returns either a line starting with '>' and ending
 // with '\n' or the whole multi-line DNA strand part that follows
 // '>' line (i.e. everything next '>')
@@ -81,6 +83,7 @@ func fasta_reverse(strand []byte) {
 }
 
 func main() {
+	st := time.Now()
 	data, err := ioutil.ReadAll(os.Stdin)
 	if err != nil {
 		log.Fatalf("Failed to read os.Stdin")
@@ -97,4 +100,6 @@ func main() {
 		os.Stdout.Write(line)
 	}
 	os.Stdout.WriteString("\n")
+	dur := time.Now().Sub(st)
+	os.Stderr.WriteString(dur.String())
 }

@@ -10,6 +10,7 @@ package main
 import (
 	"bufio"
 	"os"
+	"time"
 )
 
 const lineSize = 60
@@ -34,6 +35,7 @@ var complement = [256]uint8{
 }
 
 func main() {
+	st := time.Now()
 	in := bufio.NewReaderSize(os.Stdin, 1<<18)
 	buf := make([]byte, 1<<20)
 	line, err := in.ReadSlice('\n')
@@ -73,4 +75,6 @@ func main() {
 		}
 		os.Stdout.Write(buf[0:i])
 	}
+	dur := time.Now().Sub(st)
+	os.Stderr.WriteString(dur.String())
 }
