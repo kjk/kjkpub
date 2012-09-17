@@ -1,7 +1,11 @@
 #!/bin/sh
+
+go build -o revcomp revcomp.go
+go build -o revcomp2 revcomp2.go
+
 echo "Original version:"
-time go run revcomp.go <revcomp-input.txt >/dev/null
+./revcomp <revcomp-input.txt >/dev/null
 
 echo "\n\nMy version"
-time go run revcomp2.go <revcomp-input.txt >/dev/null
+./revcomp2 <revcomp-input.txt >/dev/null
 
