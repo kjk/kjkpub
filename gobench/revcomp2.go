@@ -13,23 +13,22 @@ import (
 	"time"
 )
 
-var comptbl = [256]uint8{
-	'A': 'T', 'a': 'T',
-	'C': 'G', 'c': 'G',
-	'G': 'C', 'g': 'C',
-	'T': 'A', 't': 'A',
-	'U': 'A', 'u': 'A',
-	'M': 'K', 'm': 'K',
-	'R': 'Y', 'r': 'Y',
-	'W': 'W', 'w': 'W',
-	'S': 'S', 's': 'S',
-	'Y': 'R', 'y': 'R',
-	'K': 'M', 'k': 'M',
-	'V': 'B', 'v': 'B',
-	'H': 'D', 'h': 'D',
-	'D': 'H', 'd': 'H',
-	'B': 'V', 'b': 'V',
-	'N': 'N', 'n': 'N',
+var comptbl = [256]uint8{}
+
+func build_comptbl() {
+	l1 := []byte("UACBDKRWSN")
+	l2 := []byte("ATGVHMYWSN")
+	l1_lower := bytes.ToLower(l1)
+	l2_lower := bytes.ToLower(l2)
+	for i, c1 := range l1 {
+		c2 := l2[i]
+		comptbl[c1] = c2
+		comptbl[c2] = c1
+		c1_lower := l1_lower[i]
+		c2_lower := l2_lower[i]
+		comptbl[c1_lower] = c2
+		comptbl[c2_lower] = c1
+	}
 }
 
 // returns either a line starting with '>' and ending
@@ -84,6 +83,7 @@ func fasta_reverse(strand []byte) {
 
 func main() {
 	st := time.Now()
+	build_comptbl()
 	data, err := ioutil.ReadAll(os.Stdin)
 	if err != nil {
 		log.Fatalf("Failed to read os.Stdin")
