@@ -8,7 +8,6 @@ package main
 
 import (
 	"bytes"
-	_ "fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -26,85 +25,55 @@ func build_comptbl() {
 		c2 := l2[i]
 		comptbl[c1] = c2
 		comptbl[c2] = c1
-		c1_lower := l1_lower[i]
-		c2_lower := l2_lower[i]
-		comptbl[c1_lower] = c2
-		comptbl[c2_lower] = c1
+		comptbl[l1_lower[i]] = c2
+		comptbl[l2_lower[i]] = c1
 	}
 }
 
-// returns either a line starting with '>' and ending
-// with '\n' or the whole multi-line DNA strand part that follows
-// '>' line (i.e. everything next '>')
-func next_fasta_part(buf []byte, pos *int) []byte {
-	p := *pos
-	start := p
-	end := len(buf) - 1
-	if p == end {
-		return nil
-	}
-	var until byte
-	is_line := buf[p] == '>'
-	if is_line {
-		until = '\n'
-	} else {
-		until = '>'
-	}
-	for p != end && buf[p] != until {
-		p += 1
-	}
-	if until == '>' {
-		p -= 1
-	}
-	*pos = p + 1
-	return buf[start:*pos]
-}
-
-func fasta_reverse(strand []byte) {
-	buf := make([]byte, len(strand), len(strand))
+// in-place fasta-reverse that skips '\n' (to accomodate the file
+// format we're given)
+func fasta_reverse_and_print(strand []byte) {
 	i := 0
-	chars_per_line_left := 60
-	for n := len(strand) - 1; n >= 0; n-- {
-		c := strand[n]
-		if c != '\n' {
-			buf[i] = comptbl[c]
+	end := len(strand) - 1
+	for i < end {
+		c := strand[i]
+		if c == '\n' {
 			i += 1
-			chars_per_line_left -= 1
-			if 0 == chars_per_line_left {
-				buf[i] = '\n'
-				i += 1
-				chars_per_line_left = 60
-			}
+			c = strand[i]
 		}
+		cend := strand[end]
+		if cend == '\n' {
+			end -= 1
+			cend = strand[end]
+		}
+		strand[i] = comptbl[cend]
+		strand[end] = comptbl[c]
+		i += 1
+		end -= 1
 	}
-	if i == len(buf)-1 {
-		buf[i] = '\n'
-	} else if i != len(buf) {
-		panic("unexpected i")
-	}
-	os.Stdout.Write(buf)
+	os.Stdout.Write(strand)
 }
 
 func main() {
 	st := time.Now()
 	build_comptbl()
-	data, err := ioutil.ReadAll(os.Stdin)
+	buf, err := ioutil.ReadAll(os.Stdin)
 	if err != nil {
 		log.Fatalf("Failed to read os.Stdin")
 	}
-	pos := 0
-	for {
-		line := next_fasta_part(data, &pos)
-		if nil == line {
-			break
+
+	for len(buf) != 0 {
+		end := bytes.IndexByte(buf, '\n')
+		os.Stdout.Write(buf[:end])
+		buf = buf[end:]
+		end = bytes.IndexByte(buf, '>')
+		if end == -1 {
+			end = len(buf)
 		}
-		if line[0] == '>' {
-			os.Stdout.Write(line)
-		} else {
-			fasta_reverse(line)
-		}
+		fasta_reverse_and_print(buf[:end])
+		buf = buf[end:]
 	}
-	os.Stdout.WriteString("\n")
+	//os.Stdout.WriteString("\n")
 	dur := time.Now().Sub(st)
 	os.Stderr.WriteString(dur.String() + "\n")
 }

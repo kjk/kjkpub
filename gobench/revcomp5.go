@@ -9,10 +9,10 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"os"
 	"runtime"
 	"time"
-	"fmt"
 )
 
 var comptbl = [256]uint8{}

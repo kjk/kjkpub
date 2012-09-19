@@ -90,7 +90,7 @@ func main() {
 	runtime.GOMAXPROCS(NCPU)
 	tasks := make(chan int, NCPU)
 	for i := 0; i < NCPU; i++ {
-		tasks <- 1	// fill pipe of 1, one for each CPU
+		tasks <- 1 // fill pipe of 1, one for each CPU
 	}
 	build_comptbl()
 	data, err := ioutil.ReadAll(os.Stdin)
@@ -116,7 +116,7 @@ func main() {
 	}
 	// Drain the channel.
 	for i := 0; i < NCPU; i++ {
-		<-tasks	// wait for tasks to complete
+		<-tasks // wait for tasks to complete
 	}
 	os.Stdout.Write(data)
 	//os.Stdout.WriteString("\n")
