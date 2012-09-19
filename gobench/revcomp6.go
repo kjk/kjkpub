@@ -7,8 +7,10 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
-	"io/ioutil"
+	"fmt"
+	"io"
 	"log"
 	"os"
 	"time"
@@ -57,23 +59,24 @@ func fasta_reverse_and_print(strand []byte) {
 func main() {
 	st := time.Now()
 	build_comptbl()
-	buf, err := ioutil.ReadAll(os.Stdin)
-	if err != nil {
-		log.Fatalf("Failed to read os.Stdin")
-	}
-
-	for len(buf) != 0 {
-		end := bytes.IndexByte(buf, '\n')
-		os.Stdout.Write(buf[:end])
-		buf = buf[end:]
-		end = bytes.IndexByte(buf, '>')
-		if end == -1 {
-			end = len(buf)
+	in := bufio.NewReaderSize(os.Stdin, 1024*1024*243)
+	for {
+		line, err := in.ReadSlice('\n')
+		if err != nil || line[0] != '>' {
+			panic("unexpected 1")
 		}
-		fasta_reverse_and_print(buf[:end])
-		buf = buf[end:]
+		os.Stdout.Write(line)
+		line, err = in.ReadSlice('>')
+		if err != nil {
+			if err == io.EOF {
+				fasta_reverse_and_print(line)
+				break
+			}
+			log.Fatalf(fmt.Sprintf("Err: %s\n"), err.Error())
+		}
+		fasta_reverse_and_print(line[:len(line)-1])
+		in.UnreadByte()
 	}
-	//os.Stdout.WriteString("\n")
 	dur := time.Now().Sub(st)
 	os.Stderr.WriteString(dur.String() + "\n")
 }
