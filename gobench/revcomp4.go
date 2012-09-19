@@ -12,6 +12,7 @@ import (
 	"log"
 	"os"
 	"time"
+	_ "fmt"
 )
 
 var comptbl = [256]uint8{}
@@ -59,27 +60,29 @@ func next_fasta_part(buf []byte, pos *int) []byte {
 	return buf[start:*pos]
 }
 
-// in-place fasta-reverse that skips '\n' (to accomodate the file
-// format we're given)
 func fasta_reverse(strand []byte) {
+	buf := make([]byte, len(strand), len(strand))
 	i := 0
-	end := len(strand) - 1
-	for i < end {
-		c := strand[i]
-		if c == '\n' {
+	chars_per_line_left := 60
+	for n := len(strand) - 1; n >= 0; n-- {
+		c := strand[n]
+		if c != '\n' {
+			buf[i] = comptbl[c]
 			i += 1
-			c = strand[i]
+			chars_per_line_left -= 1
+			if 0 == chars_per_line_left {
+				buf[i] = '\n'
+				i += 1
+				chars_per_line_left = 60
+			}
 		}
-		cend := strand[end]
-		if cend == '\n' {
-			end -= 1
-			cend = strand[end]
-		}
-		strand[i] = comptbl[cend]
-		strand[end] = comptbl[c]
-		i += 1
-		end -= 1
 	}
+	if i == len(buf) - 1 {
+		buf[i] = '\n'
+	} else if i != len(buf) {
+		panic("unexpected i")
+	}
+	os.Stdout.Write(buf)
 }
 
 func main() {
@@ -95,10 +98,11 @@ func main() {
 		if nil == line {
 			break
 		}
-		if line[0] != '>' {
+		if line[0] == '>' {
+			os.Stdout.Write(line)
+		} else {
 			fasta_reverse(line)
 		}
-		os.Stdout.Write(line)
 	}
 	os.Stdout.WriteString("\n")
 	dur := time.Now().Sub(st)

@@ -12,6 +12,7 @@ import (
 	"log"
 	"os"
 	"time"
+	_ "fmt"
 )
 
 var comptbl = [256]uint8{}
@@ -48,56 +49,67 @@ func fasta_reverse(strand []byte) []byte {
 	return strand
 }
 
+func pretty_print_buf(buf []byte) {
+	for len(buf) > 60 {
+		os.Stdout.Write(buf[:60])
+		os.Stdout.WriteString("\n")
+		buf = buf[60:]
+	}
+	os.Stdout.Write(buf)
+	os.Stdout.WriteString("\n")
+}
+
 // returns either a line starting with '>' and ending
 // with '\n' or the whole multi-line DNA strand part that follows
 // '>' line (i.e. everything next '>')
-func next_fasta_part(buf []byte, pos *int) []byte {
-	p := *pos
-	start := p
-	end := len(buf) - 1
-	if p >= end {
-		return nil
+func next_fasta_part(buf []byte) []byte {
+	if buf[0] != '>' {
+		panic("expected '>' here!")
 	}
 
-	if buf[p] == '>' {
-		for p != end && buf[p] != '\n' {
-			p += 1
-		}
-		*pos = p + 1
-		return buf[start:*pos]
+	for i, c := range buf {
+		if c == '\n' {
+			os.Stdout.Write(buf[:i+1])
+			buf = buf[i:]
+			break
+		}			
 	}
 
-	rest := buf[p:]
-	i := 0
-	for _, c := range rest  {
+	var line []byte
+	w := 0
+	for i, c := range buf  {
 		if c == '>' {
+			line = buf[:w]
+			buf = buf[i:]
 			break
 		}
 		if c != '\n' {
-			rest[i] = c
-			i += 1
+			buf[w] = c
+			w += 1
 		}
 	}
-	*pos = p + i + 1
-	return buf[start:*pos-1]
+	if line == nil {
+		fasta_reverse(buf[:w])
+		pretty_print_buf(buf[:w])
+		return nil
+	}
+	fasta_reverse(line)
+	pretty_print_buf(line)
+	return buf
 }
 
 func main() {
 	st := time.Now()
 	build_comptbl()
-	data, err := ioutil.ReadAll(os.Stdin)
+	next, err := ioutil.ReadAll(os.Stdin)
 	if err != nil {
 		log.Fatalf("Failed to read os.Stdin")
 	}
-	pos := 0
-	for {
-		line := next_fasta_part(data, &pos)
-		if nil == line {
-			break
-		}
-		os.Stdout.Write(line)
+
+	for next != nil {
+		next = next_fasta_part(next)
 	}
-	os.Stdout.WriteString("\n")
+	//os.Stdout.WriteString("\n")
 	dur := time.Now().Sub(st)
-	os.Stderr.WriteString(dur.String())
+	os.Stderr.WriteString(dur.String() + "\n")
 }
