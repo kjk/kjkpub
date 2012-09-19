@@ -8,11 +8,11 @@ package main
 
 import (
 	"bytes"
+	_ "fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"time"
-	_ "fmt"
 )
 
 var bigbuf []byte
@@ -53,7 +53,7 @@ func print_reverse2(strand []byte) {
 			}
 		}
 	}
-	if i == len(buf) - 1 {
+	if i == len(buf)-1 {
 		buf[i] = '\n'
 	} else if i != len(buf) {
 		panic("unexpected i")

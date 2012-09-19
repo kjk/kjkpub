@@ -26,6 +26,8 @@ go build -o bin/revcomp3 revcomp3.go
 if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
 go build -o bin/revcomp4 revcomp4.go
 if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
+go build -o bin/revcomp5 revcomp5.go
+if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
 
 echo "Small file"
 
@@ -39,17 +41,22 @@ echo -n "rev2: "
 if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
 diff bin/revcomp-out-good.txt bin/revcomp-out-2.txt
 
-echo -n "rev3: "
-./bin/revcomp3 <revcomp-input.txt >bin/revcomp-out-3.txt
-if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
-diff -q bin/revcomp-out-good.txt bin/revcomp-out-3.txt
+#echo -n "rev3: "
+#./bin/revcomp3 <revcomp-input.txt >bin/revcomp-out-3.txt
+#if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
+#diff -q bin/revcomp-out-good.txt bin/revcomp-out-3.txt
 
-echo -n "rev4: "
-./bin/revcomp4 <revcomp-input.txt >bin/revcomp-out-4.txt
-if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
-diff -q bin/revcomp-out-good.txt bin/revcomp-out-4.txt
+#echo -n "rev4: "
+#./bin/revcomp4 <revcomp-input.txt >bin/revcomp-out-4.txt
+#if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
+#diff -q bin/revcomp-out-good.txt bin/revcomp-out-4.txt
 
-# exit
+echo -n "rev5: "
+./bin/revcomp5 <revcomp-input.txt >bin/revcomp-out-5.txt
+if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
+diff -q bin/revcomp-out-good.txt bin/revcomp-out-5.txt
+
+exit
 
 echo "Big file"
 

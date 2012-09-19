@@ -8,11 +8,11 @@ package main
 
 import (
 	"bytes"
+	_ "fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"time"
-	_ "fmt"
 )
 
 var comptbl = [256]uint8{}
@@ -77,7 +77,7 @@ func fasta_reverse(strand []byte) {
 			}
 		}
 	}
-	if i == len(buf) - 1 {
+	if i == len(buf)-1 {
 		buf[i] = '\n'
 	} else if i != len(buf) {
 		panic("unexpected i")
