@@ -1,13 +1,39 @@
 #!/bin/sh
 
-go build -o revcomp revcomp.go
-go build -o revcomp2 revcomp2.go
+if [ ! -f bin/revcomp-input-big.txt ]
+then
+	go run fasta.go 25000000 >bin/revcomp-input-big.txt
+fi
+
+go build -o bin/revcomp revcomp.go
+go build -o bin/revcomp2 revcomp2.go
+go build -o bin/revcomp3 revcomp3.go
+
+echo "Small file"
 
 echo "Original version:"
-./revcomp <revcomp-input.txt >revcomp-out.txt
-diff revcomp-output.txt revcomp-out.txt
+./bin/revcomp <revcomp-input.txt >bin/revcomp-out-1.txt
+diff revcomp-output.txt bin/revcomp-out-1.txt
 
 echo "\n\nMy version"
-./revcomp2 <revcomp-input.txt >revcomp2-out.txt
+./bin/revcomp2 <revcomp-input.txt >bin/revcomp-out-2.txt
+diff revcomp-output.txt bin/revcomp-out-2.txt
+
+echo "\n\nMy version 2"
+./bin/revcomp3 <revcomp-input.txt >bin/revcomp-out-3.txt
 echo "\n"
-diff revcomp-output.txt revcomp2-out.txt
+diff -q revcomp-output.txt bin/revcomp-out-3.txt
+exit
+
+echo "Big file"
+
+echo "Original version:"
+./bin/revcomp <bin/revcomp-input-big.txt >/dev/null
+
+echo "\n\nMy version 1"
+./bin/revcomp2 <bin/revcomp-input-big-2.txt >/dev/null
+echo "\n"
+
+echo "\n\nMy version 2"
+./bin/revcomp2 <bin/revcomp-input-big-3.txt >/dev/null
+echo "\n"
