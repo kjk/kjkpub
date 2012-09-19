@@ -54,21 +54,21 @@ diff -q bin/revcomp-out-good.txt bin/revcomp-out-4.txt
 echo "Big file"
 
 echo -n "orig: "
-./bin/revcomp <bin/revcomp-big-input.txt >bin/revcomp-big-out-1.txt
+time ./bin/revcomp <bin/revcomp-big-input.txt >bin/revcomp-big-out-1.txt
 if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
 diff -q bin/revcomp-big-out-good.txt bin/revcomp-big-out-1.txt
 
 echo -n "rev2: "
-./bin/revcomp2 <bin/revcomp-big-input.txt >bin/revcomp-big-out-2.txt
+time ./bin/revcomp2 <bin/revcomp-big-input.txt >bin/revcomp-big-out-2.txt
 if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
 diff -q bin/revcomp-big-out-good.txt bin/revcomp-big-out-2.txt
 
 echo -n "rev3: "
-./bin/revcomp3 <bin/revcomp-big-input.txt >bin/revcomp-big-out-3.txt
+time ./bin/revcomp3 <bin/revcomp-big-input.txt >bin/revcomp-big-out-3.txt
 if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
 diff -q bin/revcomp-big-out-good.txt bin/revcomp-big-out-3.txt
 
 echo -n "rev4: "
-./bin/revcomp4 <bin/revcomp-big-input.txt >bin/revcomp-big-out-4.txt
+time ./bin/revcomp4 <bin/revcomp-big-input.txt >bin/revcomp-big-out-4.txt
 if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
 diff -q bin/revcomp-big-out-good.txt bin/revcomp-big-out-4.txt
