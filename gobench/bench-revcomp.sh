@@ -44,22 +44,22 @@ if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi
 #if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
 #diff bin/revcomp-out-good.txt bin/revcomp-out-1.txt
 
-#echo -n "rev2: "
+#echo -n "r  2: "
 #./bin/revcomp2 <revcomp-input.txt >bin/revcomp-out-2.txt
 #if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
 #diff bin/revcomp-out-good.txt bin/revcomp-out-2.txt
 
-#echo -n "rev3: "
+#echo -n "r  3: "
 #./bin/revcomp3 <revcomp-input.txt >bin/revcomp-out-3.txt
 #if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
 #diff -q bin/revcomp-out-good.txt bin/revcomp-out-3.txt
 
-#echo -n "rev4: "
+#echo -n "r  4: "
 #./bin/revcomp4 <revcomp-input.txt >bin/revcomp-out-4.txt
 #if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
 #diff -q bin/revcomp-out-good.txt bin/revcomp-out-4.txt
 
-#echo -n "rev5: "
+#echo -n "r  5: "
 #./bin/revcomp5 <revcomp-input.txt >bin/revcomp-out-5.txt
 #if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
 #diff -q bin/revcomp-out-good.txt bin/revcomp-out-5.txt
@@ -74,26 +74,32 @@ if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi
 #if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
 #diff -q bin/revcomp-out-good.txt bin/revcomp-out-6c.txt
 
-#echo -n "rev7: "
+#echo -n "r  7: "
 #./bin/revcomp7 <revcomp-input.txt >bin/revcomp-out-7.txt
 #if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
 #diff bin/revcomp-out-good.txt bin/revcomp-out-7.txt
 
-echo -n "rev8: "
-./bin/revcomp8 <revcomp-input.txt >bin/revcomp-out-8.txt
+#echo -n "r  8: "
+#./bin/revcomp8 <revcomp-input.txt >bin/revcomp-out-8.txt
+#if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
+#diff bin/revcomp-out-good.txt bin/revcomp-out-8.txt
+#if [ "$?" -ne 0 ]; then echo "bad result"; exit 1; fi 
+
+echo -n "r 8c: "
+./bin/revcomp8c <revcomp-input.txt >bin/revcomp-out-8c.txt
 if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
-diff bin/revcomp-out-good.txt bin/revcomp-out-8.txt
+diff bin/revcomp-out-good.txt bin/revcomp-out-8c.txt
 if [ "$?" -ne 0 ]; then echo "bad result"; exit 1; fi 
 
 #exit
 
 echo "Big file"
 
-echo -n "orig: "
-time ./bin/revcomp <bin/revcomp-big-input.txt >bin/revcomp-big-out-1.txt
-if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
-diff -q bin/revcomp-big-out-good.txt bin/revcomp-big-out-1.txt
-if [ "$?" -ne 0 ]; then echo "diff failed"; exit 1; fi 
+#echo -n "orig: "
+#time ./bin/revcomp <bin/revcomp-big-input.txt >bin/revcomp-big-out-1.txt
+#if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
+#diff -q bin/revcomp-big-out-good.txt bin/revcomp-big-out-1.txt
+#if [ "$?" -ne 0 ]; then echo "diff failed"; exit 1; fi 
 
 #echo; echo -n "rev2: "
 #time ./bin/revcomp2 <bin/revcomp-big-input.txt >bin/revcomp-big-out-2.txt
@@ -129,4 +135,10 @@ echo; echo -n "r  8: "
 time ./bin/revcomp8 <bin/revcomp-big-input.txt >bin/revcomp-big-out-8.txt
 if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
 diff -q bin/revcomp-big-out-good.txt bin/revcomp-big-out-8.txt
+if [ "$?" -ne 0 ]; then echo "diff failed"; exit 1; fi 
+
+echo; echo -n "r 8c: "
+time ./bin/revcomp8c <bin/revcomp-big-input.txt >bin/revcomp-big-out-8c.txt
+if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
+diff -q bin/revcomp-big-out-good.txt bin/revcomp-big-out-8c.txt
 if [ "$?" -ne 0 ]; then echo "diff failed"; exit 1; fi 
