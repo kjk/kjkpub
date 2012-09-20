@@ -36,6 +36,8 @@ go build -o bin/revcomp7 revcomp7.go
 if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
 go build -o bin/revcomp8 revcomp8.go
 if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
+go build -o bin/revcomp8c revcomp8c.go
+if [ "$?" -ne 0 ]; then echo "command failed"; exit 1; fi 
 
 #echo "Small file"
 

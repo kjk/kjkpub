@@ -46,13 +46,40 @@ type ChunkInfo struct {
 	last   bool
 }
 
+type PrintJob struct {
+	data []byte
+	last bool
+}
+
 var buf []byte
 var start_fasta_hdr int
 var start_fasta_data int
 var state int = START
 var chunker_chan chan ChunkInfo
+var printer_chan chan PrintJob
 var done_chan chan bool
 
+func printer(jobs chan PrintJob, done chan bool) {
+	for {
+		job := <-jobs
+		if nil != job.data {
+			os.Stdout.Write(job.data)
+		}
+		if job.last {
+			done <- true
+			return
+		}
+	}
+}
+
+func add_printer_job(data []byte, last bool) {
+	var j PrintJob
+	j.data = data
+	j.last = last
+	printer_chan <- j
+}
+
+// TODO: this one can print a bit earlier
 func reverse(strand []byte) {
 	i := 0
 	end := len(strand) - 1
@@ -74,9 +101,9 @@ func reverse(strand []byte) {
 	}
 }
 
-func print_fasta(start_hdr, start_data, end_data int) {
-	reverse(buf[start_data:end_data])
-	os.Stdout.Write(buf[start_hdr:end_data])
+func print_fasta(start, end int) {
+	reverse(buf[start:end])
+	add_printer_job(buf[start:end], false)
 }
 
 func process_chunk_data(i, end int) int {
@@ -86,7 +113,7 @@ func process_chunk_data(i, end int) int {
 		return IN_DATA
 	}
 	i = i + pos
-	print_fasta(start_fasta_hdr, start_fasta_data, i)
+	print_fasta(start_fasta_data, i)
 	start_fasta_hdr = i
 	return process_chunk_start(i, end)
 }
@@ -94,6 +121,7 @@ func process_chunk_data(i, end int) int {
 func process_chunk_hdr(i, end int) int {
 	for ; i < end; i++ {
 		if buf[i] == '\n' {
+			add_printer_job(buf[start_fasta_hdr:i+1], false)
 			start_fasta_data = i + 1
 			return process_chunk_data(i+1, end)
 		}
@@ -126,7 +154,8 @@ func chunker(chunks chan ChunkInfo, done chan bool) {
 			if state != IN_DATA {
 				panic("unexpected state")
 			}
-			print_fasta(start_fasta_hdr, start_fasta_data, ci.end)
+			print_fasta(start_fasta_data, ci.end)
+			add_printer_job(nil, true)
 			done <- true
 			return
 		} else {
@@ -141,8 +170,10 @@ func main() {
 	build_comptbl()
 	buf = make([]byte, BUF_SIZE, BUF_SIZE)
 	chunker_chan = make(chan ChunkInfo, 128)
-	done_chan = make(chan bool)
+	printer_chan = make(chan PrintJob, 16)
+	done_chan = make(chan bool, 2)
 	go chunker(chunker_chan, done_chan)
+	go printer(printer_chan, done_chan)
 	i := 0
 	for {
 		n, err := os.Stdin.Read(buf[i : i+CHUNK_SIZE])
@@ -164,6 +195,8 @@ func main() {
 			log.Fatalf(fmt.Sprintf("Unexpected error: %s\n"), err.Error())
 		}
 	}
+	// wait for both chunker and printer
+	<-done_chan
 	<-done_chan
 	dur := time.Now().Sub(st)
 	os.Stderr.WriteString(dur.String() + "\n")
