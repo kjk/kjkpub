@@ -52,7 +52,6 @@ func allocNode(item int, left, right NodeId) NodeId {
 	node.left = left
 	node.right = right
 
-	nodes_left -= 1
 	curr_node_id += 1
 	return NodeId(curr_node_id)
 }
