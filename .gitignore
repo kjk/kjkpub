@@ -2,3 +2,4 @@ scripts/awscreds.py
 *pyc
 gobench/bin
 xcdebugger/
+*.userprefs
