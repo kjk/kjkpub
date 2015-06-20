@@ -2,6 +2,7 @@ package levenshtein
 
 // based on https://raw.githubusercontent.com/julesjacobs/levenshtein/master/levenshtein.py
 // http://julesjacobs.github.io/2015/06/17/disqus-levenshtein-simple-and-fast.html
+// https://news.ycombinator.com/item?id=9737554
 
 type Automaton struct {
 	Text     string
