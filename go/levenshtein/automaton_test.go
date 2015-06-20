@@ -5,7 +5,7 @@ import "testing"
 func matches(a *Automaton, s string) bool {
 	state := a.Start()
 	for i := 0; i < len(s); i++ {
-		state = a.Step(state, s[i])
+		a.Step(state, s[i])
 		if !a.CanMatch(state) {
 			return false
 		}

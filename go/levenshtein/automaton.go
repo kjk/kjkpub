@@ -8,7 +8,23 @@ type Automaton struct {
 	MaxEdits int
 }
 
-type State []int
+type State struct {
+	whichHalf int
+	arr       []int
+}
+
+func (s *State) getHalfs() ([]int, []int) {
+	n := len(s.arr) / 2
+	currStart := 0
+	nextStart := n
+	if s.whichHalf%2 == 1 {
+		currStart = n
+		nextStart = 0
+	}
+	curr := s.arr[currStart : currStart+n]
+	next := s.arr[nextStart : nextStart+n]
+	return curr, next
+}
 
 func min3(n1, n2, n3 int) int {
 	if n1 < n2 {
@@ -52,18 +68,21 @@ func NewAutomaton(s string, maxEdits int) *Automaton {
 	}
 }
 
-func (a *Automaton) Start() State {
+func (a *Automaton) Start() *State {
 	n := len(a.Text) + 1
-	res := make([]int, n, n)
+	arr := make([]int, n*2, n*2)
 	for i := 0; i < n; i++ {
-		res[i] = i
+		arr[i] = i
 	}
-	return res
+	return &State{
+		whichHalf: 0,
+		arr:       arr,
+	}
 }
 
-func (a *Automaton) Step(state State, c byte) State {
+func (a *Automaton) Step(stateFull *State, c byte) {
+	state, newState := stateFull.getHalfs()
 	n := len(state)
-	newState := make([]int, n, n)
 	newState[0] = state[0] + 1
 	for i := 0; i < n-1; i++ {
 		cost := 0
@@ -79,15 +98,17 @@ func (a *Automaton) Step(state State, c byte) State {
 	for i := 0; i < len(newState); i++ {
 		newState[i] = min2(newState[i], max)
 	}
-	return newState
+	stateFull.whichHalf++
 }
 
-func (a *Automaton) IsMatch(state State) bool {
+func (a *Automaton) IsMatch(stateFull *State) bool {
+	state, _ := stateFull.getHalfs()
 	last := state[len(state)-1]
 	return last <= a.MaxEdits
 }
 
-func (a *Automaton) CanMatch(state State) bool {
+func (a *Automaton) CanMatch(stateFull *State) bool {
+	state, _ := stateFull.getHalfs()
 	min := minArr(state)
 	return min <= a.MaxEdits
 }
