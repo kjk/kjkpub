@@ -84,6 +84,7 @@ Parse:
 ?? ../scdiff/bin/
 A  main.go
 AM main.go
+D  main.go
 */
 func parseGitStatusOutputLine(s string) (GitItem, error) {
 	var res GitItem
@@ -110,6 +111,10 @@ func parseGitStatusOutputLine(s string) (GitItem, error) {
 		case 'A':
 			if Added > res.Type {
 				res.Type = Added
+			}
+		case 'D':
+			if Deleted > res.Type {
+				res.Type = Deleted
 			}
 		default:
 			log.Fatalf("invalid git status line: '%s'\n", s) // TODO: for now
