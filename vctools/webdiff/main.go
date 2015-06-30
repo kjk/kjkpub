@@ -57,7 +57,7 @@ func findScmRoot() (string, error) {
 const (
 	NotVersioned = 1
 	Modified     = 2
-	Removed      = 3
+	Deleted      = 3
 	Added        = 4
 )
 
