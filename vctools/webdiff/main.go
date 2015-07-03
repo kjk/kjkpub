@@ -18,8 +18,33 @@ import (
 var (
 	errDirectoryNotUnderScm = errors.New("directory not in git repository")
 	errUnexpectedStatusLine = errors.New("unexpected line in git status output")
-	gStatus                 []*GitItem
+	gGitInfo                *GitInfo
 )
+
+// note: it's important that Removed and Added are > than Modified
+const (
+	NotVersioned = 1
+	Modified     = 2
+	Deleted      = 3
+	Added        = 4
+)
+
+type GitStatusItem struct {
+	FullPath     string
+	RelativePath string
+	Type         int
+}
+
+type GitDiffItem struct {
+	Type            int
+	PathRelative    string
+	ObjectSha1Short string
+}
+
+type GitInfo struct {
+	GitStatusItems []*GitStatusItem
+	GitDiffItems   []*GitDiffItem
+}
 
 func isDir(path string) bool {
 	s, err := os.Stat(path)
@@ -55,20 +80,6 @@ func findScmRoot() (string, error) {
 	}
 }
 
-// note: it's important that Removed and Added are > than Modified
-const (
-	NotVersioned = 1
-	Modified     = 2
-	Deleted      = 3
-	Added        = 4
-)
-
-type GitItem struct {
-	FullPath     string
-	RelativePath string
-	Type         int
-}
-
 func bytesToLines(d []byte) []string {
 	r := bytes.NewBuffer(d)
 	scanner := bufio.NewScanner(r)
@@ -88,8 +99,8 @@ A  main.go
 AM main.go
 D  main.go
 */
-func parseGitStatusOutputLine(s string) (GitItem, error) {
-	var res GitItem
+func parseGitStatusOutputLine(s string) (GitStatusItem, error) {
+	var res GitStatusItem
 	parts := strings.SplitN(s, " ", 2)
 	if len(parts) != 2 {
 		return res, errUnexpectedStatusLine
@@ -126,21 +137,21 @@ func parseGitStatusOutputLine(s string) (GitItem, error) {
 	return res, nil
 }
 
-func parseGitStatusOutput(d []byte) ([]*GitItem, error) {
+func parseGitStatusOutput(d []byte) ([]*GitStatusItem, error) {
 	lines := bytesToLines(d)
-	var res []*GitItem
+	var res []*GitStatusItem
 	for _, l := range lines {
 		gi, err := parseGitStatusOutputLine(l)
 		if err != nil {
 			return nil, err
 		}
-		fmt.Printf("%# v\n", pretty.Formatter(&gi))
+		//fmt.Printf("%# v\n", pretty.Formatter(&gi))
 		res = append(res, &gi)
 	}
 	return res, nil
 }
 
-func gitStatus(rootDir string) ([]*GitItem, error) {
+func gitStatus(rootDir string) ([]*GitStatusItem, error) {
 	cmd := exec.Command("git", "status", "-s")
 	cmd.Dir = rootDir
 	out, err := cmd.CombinedOutput()
@@ -150,18 +161,14 @@ func gitStatus(rootDir string) ([]*GitItem, error) {
 	return parseGitStatusOutput(out)
 }
 
-type GitDiffItem struct {
-	Type            int
-	PathRelative    string
-	ObjectSha1Short string
-}
-
 // parse line like:
 // :100644 100644 9548acf... 0000000... M  vctools/webdiff/handlers.go
 func parseGitDiffOutputLine(s string) (GitDiffItem, error) {
 	parts := strings.SplitN(s, " ", 6)
 	var res GitDiffItem
 	if len(parts) != 6 {
+		fmt.Printf("len(parts): %d, expected: 6\n", len(parts))
+		fmt.Printf("parts: %v\n", parts)
 		return res, errUnexpectedStatusLine
 	}
 	typeStr := parts[4]
@@ -200,22 +207,29 @@ func gitDiff() ([]*GitDiffItem, error) {
 	return parseGitDiffOutput(out)
 }
 
-func getInitialGitStatusMust() {
+func getInitialGitInfoMust() {
 	d, err := findScmRoot()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "findScmRoot() failed with %s\n", err)
 		os.Exit(1)
 	}
 	fmt.Printf("dir: %s\n", d)
-	gStatus, err = gitStatus(d)
+	gitInfo := &GitInfo{}
+	gitInfo.GitStatusItems, err = gitStatus(d)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gitStatus() failed with %s\n", err)
 		os.Exit(1)
 	}
+	gitInfo.GitDiffItems, err = gitDiff()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "gitDiff() failed with %s\n", err)
+		os.Exit(1)
+	}
+	gGitInfo = gitInfo
 }
 
 func main() {
-	getInitialGitStatusMust()
+	getInitialGitInfoMust()
 	httpPort := startWebServerAsync()
 	if runtime.GOOS == "darwin" {
 		httpAddr := fmt.Sprintf("http://localhost:%d", httpPort)

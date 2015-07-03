@@ -35,8 +35,8 @@ func handleFavicon(w http.ResponseWriter, r *http.Request) {
 	http.NotFound(w, r)
 }
 
-func gitItemJSONType(gi *GitItem) string {
-	switch gi.Type {
+func gitItemJSONType(typ int) string {
+	switch typ {
 	case NotVersioned:
 		return "u"
 	case Modified:
@@ -46,7 +46,7 @@ func gitItemJSONType(gi *GitItem) string {
 	case Added:
 		return "a"
 	default:
-		LogFatalf("unknown type: %d\n", gi.Type)
+		LogFatalf("unknown type: %d\n", typ)
 		return "INVALID"
 	}
 
@@ -59,10 +59,11 @@ func handleAPIGetFileList(w http.ResponseWriter, r *http.Request) {
 	jsonp := strings.TrimSpace(r.FormValue("jsonp"))
 	LogInfof("jsonp: '%s'\n", jsonp)
 	var v [][]string
-	for i := 0; i < len(gStatus); i++ {
+	status := gGitInfo.GitStatusItems
+	for i := 0; i < len(status); i++ {
 		var el []string
-		gi := gStatus[i]
-		typeStr := gitItemJSONType(gi)
+		gi := status[i]
+		typeStr := gitItemJSONType(gi.Type)
 		el = append(el, typeStr)
 		// TODO:
 	}
