@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/kr/pretty"
@@ -156,4 +157,14 @@ func main() {
 	}
 	fmt.Printf("dir: %s\n", d)
 	gitStatus(d)
+	httpPort := startWebServerAsync()
+	if runtime.GOOS == "darwin" {
+		httpAddr := fmt.Sprintf("http://localhost:%d", httpPort)
+		cmd := exec.Command("open", httpAddr)
+		if err = cmd.Run(); err != nil {
+			LogErrorf("cmd.Run() failed with %s\n", err)
+		}
+	}
+	ch := make(chan interface{})
+	<-ch
 }

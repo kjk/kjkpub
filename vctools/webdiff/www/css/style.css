@@ -1,0 +1,162 @@
+div#thediff {
+    padding-right: 10px;
+    max-width: 100%;
+}
+
+.diff .line-no, .diff .code {
+    font-family: Inconsolata, Consolas, "Liberation Mono", Menlo, Courier, monospace;
+    font-size: 13px;
+}
+
+td.code {
+  width: 101ch;  /* per-side max line length */
+}
+
+.file-selector {
+  padding-bottom: 5px;
+  border-bottom: 1px solid #ccc;
+  margin-bottom: 15px;
+}
+
+ul.file-list {
+  padding: 0;
+}
+.file-list li {
+  list-style-type: none;
+}
+
+.file-mode-toggle {
+  position: absolute;
+  right: 0;
+  cursor: pointer;
+  width: 20px;
+  height: 10px;
+  overflow: hidden;
+}
+
+.arrow-holder {
+  font-size: 20px;
+  line-height: 20px;
+  transform: rotate(90deg);
+}
+
+.file-list .diff {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-right: 5px;
+  background: url(/static/img/sprites.png) no-repeat left center;
+  vertical-align: top;
+}
+
+.diff.add    { background-position: 0 0; }
+.diff.change { background-position: 0 -16px; }
+.diff.delete { background-position: 0 -32px; }
+.diff.move   { background-position: 0 -48px; }
+
+.side-a { border: 1px solid red; }
+.side-b { border: 1px solid green; }
+
+.image-diff-controls {
+  text-align: center;
+  background-color: #f7f7f7;
+  padding: 5px;
+}
+.image-diff-controls > input {
+  margin-left: 20px;
+}
+.image-diff-controls a {
+  text-decoration: none;
+}
+.image-diff-controls a, .image-diff-controls a:visited {
+  color: #666;
+}
+.image-diff-controls b {
+  color: black;
+}
+.image-diff-controls .mode {
+  padding-left: 5px;
+  padding-right: 5px;
+  border-right: 1px solid #ccc;
+}
+.image-diff-controls .mode:last-child {
+  border-right: none;
+}
+
+.overlapping-images {
+  position: relative;
+  margin: 5px;
+}
+.overlapping-images div {
+  position: absolute;
+}
+.overlapping-images-metadata .image-props:first-child {
+  margin-right: 5px;
+  float: left;
+}
+.overlapping-images-metadata .image-props:last-child {
+  margin-left: 5px;
+  float: right;
+}
+.overlapping-images-metadata {
+  overflow: hidden;
+}
+.image-diff {
+  display: table;
+  margin: 0px auto;
+}
+.swipe input {
+  width: 100%;
+}
+.onion-skin .range-holder {
+  margin: 0 auto;  /* center the slider */
+  display: table;
+}
+.onion-skin input {
+  width: 200px;
+}
+.shrink-to-fit {
+  max-width: 100%;
+}
+
+table .side-a, table .side-b {
+  background: url(/static/img/trans_bg.gif);
+}
+
+.no-changes {
+  background-color: rgb(252, 248, 227);
+  border: 1px solid rgb(245, 231, 158);
+  border-radius: 4px;
+  color: rgb(138, 109, 59);
+  text-align: center;
+  padding: 5px 5px;
+  margin-bottom: 10px;
+}
+
+.image-diff .no-changes {
+  margin-top: 10px;
+}
+
+.image-holder {
+  position: relative;  /* offset parent for .perceptual-diff */
+}
+.perceptual-diff {
+  position: absolute;
+}
+.perceptual-diff.bbox {
+  border: 2px solid hotpink;
+  box-shadow: 0 0 5px 0 rgba(50, 50, 50, 0.75);
+}
+.perceptual-diff.pixels {
+  opacity: 0.5;
+}
+
+.diff-box-disabled {
+  color: gray;
+}
+.pdiff-options {
+  margin-left: 10px;
+}
+.magick {
+  font-style: italic;
+}
