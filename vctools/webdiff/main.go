@@ -163,10 +163,19 @@ func gitStatus(rootDir string) ([]*GitStatusItem, error) {
 
 // parse line like:
 // :100644 100644 9548acf... 0000000... M  vctools/webdiff/handlers.go
+// The char after M is 0x9 (horizontal tab)
 func parseGitDiffOutputLine(s string) (GitDiffItem, error) {
-	parts := strings.SplitN(s, " ", 6)
 	var res GitDiffItem
-	if len(parts) != 6 {
+	parts := strings.SplitN(s, "\x09", 2)
+	if len(parts) != 2 {
+		fmt.Printf("len(parts): %d, expected: 2\n", len(parts))
+		fmt.Printf("parts: %v\n", parts)
+		return res, errUnexpectedStatusLine
+	}
+	res.PathRelative = parts[1]
+	s = parts[0]
+	parts = strings.Split(s, " ")
+	if len(parts) != 5 {
 		fmt.Printf("len(parts): %d, expected: 6\n", len(parts))
 		fmt.Printf("parts: %v\n", parts)
 		return res, errUnexpectedStatusLine
@@ -179,7 +188,6 @@ func parseGitDiffOutputLine(s string) (GitDiffItem, error) {
 		log.Fatalf("invalid git diff line: '%s'\n", s) // TODO: for now
 		return res, errUnexpectedStatusLine
 	}
-	res.PathRelative = parts[5]
 	res.ObjectSha1Short = strings.TrimRight(parts[2], ".")
 	return res, nil
 }

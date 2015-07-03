@@ -72,7 +72,7 @@ func handleAPIGetFileList(w http.ResponseWriter, r *http.Request) {
 
 // /api/kill
 func handleAPIKill(w http.ResponseWriter, r *http.Request) {
-	LogInfof("Exiting because /api/kill\n")
+	//LogInfof("Exiting because /api/kill\n")
 	os.Exit(1)
 }
 
