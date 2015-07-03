@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -50,6 +51,20 @@ func httpOkBytesWithContentType(w http.ResponseWriter, r *http.Request, contentT
 	}
 	w.Header().Set("Content-Length", strconv.Itoa(len(content)))
 	w.Write(content)
+}
+
+func httpOkWithText(w http.ResponseWriter, s string) {
+	w.Header().Set("Content-Type", "text/plain")
+	io.WriteString(w, s)
+}
+
+func httpOkWithJSON(w http.ResponseWriter, r *http.Request, v interface{}) {
+	b, err := json.MarshalIndent(v, "", "\t")
+	if err != nil {
+		// should never happen
+		LogErrorf("json.MarshalIndent() failed with %q\n", err)
+	}
+	httpOkBytesWithContentType(w, r, "application/json", b)
 }
 
 func httpOkWithJSONCompact(w http.ResponseWriter, r *http.Request, v interface{}) {

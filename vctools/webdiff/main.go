@@ -18,6 +18,7 @@ import (
 var (
 	errDirectoryNotUnderScm = errors.New("directory not in git repository")
 	errUnexpectedStatusLine = errors.New("unexpected line in git status output")
+	gStatus                 []*GitItem
 )
 
 func isDir(path string) bool {
@@ -149,19 +150,77 @@ func gitStatus(rootDir string) ([]*GitItem, error) {
 	return parseGitStatusOutput(out)
 }
 
-func main() {
+type GitDiffItem struct {
+	Type            int
+	PathRelative    string
+	ObjectSha1Short string
+}
+
+// parse line like:
+// :100644 100644 9548acf... 0000000... M  vctools/webdiff/handlers.go
+func parseGitDiffOutputLine(s string) (GitDiffItem, error) {
+	parts := strings.SplitN(s, " ", 6)
+	var res GitDiffItem
+	if len(parts) != 6 {
+		return res, errUnexpectedStatusLine
+	}
+	typeStr := parts[4]
+	switch typeStr {
+	case "M":
+		res.Type = Modified
+	default:
+		log.Fatalf("invalid git diff line: '%s'\n", s) // TODO: for now
+		return res, errUnexpectedStatusLine
+	}
+	res.PathRelative = parts[5]
+	res.ObjectSha1Short = strings.TrimRight(parts[2], ".")
+	return res, nil
+}
+
+func parseGitDiffOutput(d []byte) ([]*GitDiffItem, error) {
+	lines := bytesToLines(d)
+	var res []*GitDiffItem
+	for _, l := range lines {
+		gdi, err := parseGitDiffOutputLine(l)
+		if err != nil {
+			return nil, err
+		}
+		fmt.Printf("#% v\n", pretty.Formatter(&gdi))
+		res = append(res, &gdi)
+	}
+	return res, nil
+}
+
+func gitDiff() ([]*GitDiffItem, error) {
+	cmd := exec.Command("git", "diff", "--raw")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, err
+	}
+	return parseGitDiffOutput(out)
+}
+
+func getInitialGitStatusMust() {
 	d, err := findScmRoot()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "findScmRoot() failed with %s\n", err)
 		os.Exit(1)
 	}
 	fmt.Printf("dir: %s\n", d)
-	gitStatus(d)
+	gStatus, err = gitStatus(d)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "gitStatus() failed with %s\n", err)
+		os.Exit(1)
+	}
+}
+
+func main() {
+	getInitialGitStatusMust()
 	httpPort := startWebServerAsync()
 	if runtime.GOOS == "darwin" {
 		httpAddr := fmt.Sprintf("http://localhost:%d", httpPort)
 		cmd := exec.Command("open", httpAddr)
-		if err = cmd.Run(); err != nil {
+		if err := cmd.Run(); err != nil {
 			LogErrorf("cmd.Run() failed with %s\n", err)
 		}
 	}
