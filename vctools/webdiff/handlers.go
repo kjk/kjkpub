@@ -65,7 +65,7 @@ func handleAPIGetFileList(w http.ResponseWriter, r *http.Request) {
 		gi := status[i]
 		typeStr := gitItemJSONType(gi.Type)
 		el = append(el, typeStr)
-		// TODO:
+		// TODO: set other fields depending on the type
 	}
 	httpOkWithJSON(w, nil, v)
 }
