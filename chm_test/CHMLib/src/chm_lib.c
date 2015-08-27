@@ -88,7 +88,6 @@
 
 typedef unsigned char UChar;
 typedef uint32_t UInt32;
-typedef int64_t Int64;
 typedef uint64_t UInt64;
 
 #if defined(WIN32)
@@ -172,8 +171,8 @@ static int _unmarshal_uint32(unsigned char **pData, unsigned int *pLenRemain, UI
     return 1;
 }
 
-static int _unmarshal_int64(unsigned char **pData, unsigned int *pLenRemain, Int64 *dest) {
-    Int64 temp;
+static int _unmarshal_int64(unsigned char **pData, unsigned int *pLenRemain, int64_t *dest) {
+    int64_t temp;
     int i;
     if (8 > *pLenRemain)
         return 0;
@@ -552,8 +551,8 @@ struct chmFile {
  */
 
 /* utility function to handle differences between {pread,read}(64)? */
-static Int64 _chm_fetch_bytes(struct chmFile *h, UChar *buf, UInt64 os, Int64 len) {
-    Int64 readLen = 0, oldOs = 0;
+static int64_t _chm_fetch_bytes(struct chmFile *h, UChar *buf, UInt64 os, int64_t len) {
+    int64_t readLen = 0, oldOs = 0;
     if (h->fd == CHM_NULL_FD)
         return readLen;
 
@@ -1077,7 +1076,7 @@ int chm_resolve_object(struct chmFile *h, const char *objPath, struct chmUnitInf
  */
 
 /* get the bounds of a compressed block.  return 0 on failure */
-static int _chm_get_cmpblock_bounds(struct chmFile *h, UInt64 block, UInt64 *start, Int64 *len) {
+static int _chm_get_cmpblock_bounds(struct chmFile *h, UInt64 block, UInt64 *start, int64_t *len) {
     UChar buffer[8], *dummy;
     unsigned int remain;
 
@@ -1125,10 +1124,10 @@ static int _chm_get_cmpblock_bounds(struct chmFile *h, UInt64 block, UInt64 *sta
 }
 
 /* decompress the block */
-static Int64 _chm_decompress_block(struct chmFile *h, UInt64 block, UChar **ubuffer) {
+static int64_t _chm_decompress_block(struct chmFile *h, UInt64 block, UChar **ubuffer) {
     UChar *cbuffer = malloc(((unsigned int)h->reset_table.block_len + 6144));
     UInt64 cmpStart;                                         /* compressed start  */
-    Int64 cmpLen;                                            /* compressed len    */
+    int64_t cmpLen;                                            /* compressed len    */
     int indexSlot;                                           /* cache index slot  */
     UChar *lbuffer;                                          /* local buffer ptr  */
     UInt32 blockAlign = (UInt32)(block % h->reset_blkcount); /* reset intvl. aln. */
@@ -1180,7 +1179,7 @@ static Int64 _chm_decompress_block(struct chmFile *h, UInt64 block, UChar **ubuf
                     fprintf(stderr, "   (DECOMPRESS FAILED!)\n");
 #endif
                     free(cbuffer);
-                    return (Int64)0;
+                    return 0;
                 }
 
                 h->lzx_last_block = (int)curBlockIdx;
@@ -1219,7 +1218,7 @@ static Int64 _chm_decompress_block(struct chmFile *h, UInt64 block, UChar **ubuf
         fprintf(stderr, "   (DECOMPRESS FAILED!)\n");
 #endif
         free(cbuffer);
-        return (Int64)0;
+        return 0;
     }
     h->lzx_last_block = (int)block;
 
@@ -1231,14 +1230,14 @@ static Int64 _chm_decompress_block(struct chmFile *h, UInt64 block, UChar **ubuf
 }
 
 /* grab a region from a compressed block */
-static Int64 _chm_decompress_region(struct chmFile *h, UChar *buf, UInt64 start, Int64 len) {
+static int64_t _chm_decompress_region(struct chmFile *h, UChar *buf, UInt64 start, int64_t len) {
     UInt64 nBlock, nOffset;
     UInt64 nLen;
     UInt64 gotLen;
     UChar *ubuffer;
 
     if (len <= 0)
-        return (Int64)0;
+        return 0;
 
     /* figure out what we need to read */
     nBlock = start / h->reset_table.block_len;
@@ -1278,11 +1277,11 @@ LONGINT64 chm_retrieve_object(struct chmFile *h, struct chmUnitInfo *ui, unsigne
                               LONGUINT64 addr, LONGINT64 len) {
     /* must be valid file handle */
     if (h == NULL)
-        return (Int64)0;
+        return 0;
 
     /* starting address must be in correct range */
     if (addr >= ui->length)
-        return (Int64)0;
+        return 0;
 
     /* clip length */
     if (addr + len > ui->length)
@@ -1298,7 +1297,7 @@ LONGINT64 chm_retrieve_object(struct chmFile *h, struct chmUnitInfo *ui, unsigne
     /* else if the file is compressed, it's a little trickier */
     else /* ui->space == CHM_COMPRESSED */
     {
-        Int64 swath = 0, total = 0;
+        int64_t swath = 0, total = 0;
 
         /* if compression is not enabled for this file... */
         if (!h->compression_enabled)
