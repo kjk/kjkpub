@@ -92,9 +92,8 @@ struct chmFile *chm_open(const char *filename);
 /* close an ITS archive */
 void chm_close(struct chmFile *h);
 
-/* methods for ssetting tuning parameters for particular file */
-#define CHM_PARAM_MAX_BLOCKS_CACHED 0
-void chm_set_param(struct chmFile *h, int paramType, int paramVal);
+/* tuning: set number of cached blocks */
+void chm_set_cached_blocks_count(struct chmFile *h, int blocksCount);
 
 /* resolve a particular object from the archive */
 #define CHM_RESOLVE_SUCCESS (0)

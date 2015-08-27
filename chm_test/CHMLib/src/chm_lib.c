@@ -695,7 +695,7 @@ struct chmFile *chm_open(const char *filename)
     /* By default, compression is enabled. */
     newHandle->compression_enabled = 1;
 
-    chm_set_param(newHandle, CHM_PARAM_MAX_BLOCKS_CACHED, CHM_MAX_BLOCKS_CACHED);
+    chm_set_cached_blocks_count(newHandle, CHM_MAX_BLOCKS_CACHED);
 
 /* Jed, Sun Jun 27: 'span' doesn't seem to be used anywhere?! */
 #if 0
@@ -810,19 +810,14 @@ void chm_close(struct chmFile *h) {
 }
 
 /*
- * set a parameter on the file handle.
- * valid parameter types:
- *          CHM_PARAM_MAX_BLOCKS_CACHED:
- *                 how many decompressed blocks should be cached?  A simple
- *                 caching scheme is used, wherein the index of the block is
- *                 used as a hash value, and hash collision results in the
- *                 invalidation of the previously cached block.
+ * set number of blocks to cache
+ * how many decompressed blocks should be cached?  A simple
+ * caching scheme is used, wherein the index of the block is
+ * used as a hash value, and hash collision results in the
+ * invalidation of the previously cached block.
  */
-void chm_set_param(struct chmFile *h, int paramType, int paramVal) {
-    if (CHM_PARAM_MAX_BLOCKS_CACHED != paramType) {
-        return;
-    }
-    if (paramVal == h->cache_num_blocks) {
+void chm_set_cached_blocks_count(struct chmFile *h, int blocksCount) {
+    if (blocksCount == h->cache_num_blocks) {
         return;
     }
 
@@ -831,10 +826,10 @@ void chm_set_param(struct chmFile *h, int paramType, int paramVal) {
     int i;
 
     /* allocate new cached blocks */
-    newBlocks = (uint8_t **)calloc(paramVal, sizeof(uint8_t *));
+    newBlocks = (uint8_t **)calloc(blocksCount, sizeof(uint8_t *));
     if (newBlocks == NULL)
         return;
-    newIndices = (uint64_t *)calloc(paramVal, sizeof(uint64_t));
+    newIndices = (uint64_t *)calloc(blocksCount, sizeof(uint64_t));
     if (newIndices == NULL) {
         free(newBlocks);
         return;
@@ -843,7 +838,7 @@ void chm_set_param(struct chmFile *h, int paramType, int paramVal) {
     /* re-distribute old cached blocks */
     if (h->cache_blocks) {
         for (i = 0; i < h->cache_num_blocks; i++) {
-            int newSlot = (int)(h->cache_block_indices[i] % paramVal);
+            int newSlot = (int)(h->cache_block_indices[i] % blocksCount);
 
             if (h->cache_blocks[i]) {
                 /* in case of collision, destroy newcomer */
@@ -864,12 +859,8 @@ void chm_set_param(struct chmFile *h, int paramType, int paramVal) {
     /* now, set new values */
     h->cache_blocks = newBlocks;
     h->cache_block_indices = newIndices;
-    h->cache_num_blocks = paramVal;
+    h->cache_num_blocks = blocksCount;
 }
-
-/*
- * helper methods for chm_resolve_object
- */
 
 /* skip a compressed dword */
 static void _chm_skip_cword(uint8_t **entry, uint8_t *end) {
