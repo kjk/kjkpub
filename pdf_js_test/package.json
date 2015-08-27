@@ -1,0 +1,6 @@
+{
+  "name" : "pdf_js_test",
+  "dependencies" : {
+    "pdfjs-dist": "1.1.415"
+  }
+}
