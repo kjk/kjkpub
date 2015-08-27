@@ -59,6 +59,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 #ifdef CHM_DEBUG
 #include <stdio.h>
 #endif
