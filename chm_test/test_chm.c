@@ -87,7 +87,7 @@ static int _extract(struct chmFile *h, struct chmUnitInfo *ui) {
 }
 
 static int _print_ui(struct chmFile *h, struct chmUnitInfo *ui, void *context) {
-    char buf[32*1024] = { 0 };
+    char buf[32 * 1024] = { 0 };
     int res;
 
     if (ui->flags & CHM_ENUMERATE_NORMAL)
