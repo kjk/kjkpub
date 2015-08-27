@@ -176,13 +176,7 @@ typedef long long               Int64;
 typedef unsigned long long      UInt64;
 #endif
 
-/* GCC */
-#ifdef __GNUC__
-#define memcmp __builtin_memcmp
-#define memcpy __builtin_memcpy
-#define strlen __builtin_strlen
-
-#elif defined(WIN32)
+#if defined(WIN32)
 static int ffs(unsigned int val)
 {
     int bit=1, idx=1;
@@ -196,7 +190,6 @@ static int ffs(unsigned int val)
     else
         return idx;
 }
-
 #endif
 
 /* utilities for unmarshalling data */
