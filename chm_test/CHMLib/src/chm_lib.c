@@ -872,17 +872,18 @@ void chm_set_param(struct chmFile *h, int paramType, int paramVal) {
  */
 
 /* skip a compressed dword */
-static void _chm_skip_cword(uint8_t **pEntry) {
-    while (*(*pEntry)++ >= 0x80) {
-        /* do nothing */
+static void _chm_skip_cword(uint8_t **entry, uint8_t *end) {
+    uint8_t *curr = *entry;
+    while (curr < end && *curr >= 0x80) {
+        curr++;
     }
 }
 
 /* skip the data from a PMGL entry */
-static void _chm_skip_PMGL_entry_data(uint8_t **pEntry) {
-    _chm_skip_cword(pEntry);
-    _chm_skip_cword(pEntry);
-    _chm_skip_cword(pEntry);
+static void _chm_skip_PMGL_entry_data(uint8_t **entry, uint8_t *end) {
+    _chm_skip_cword(entry, end);
+    _chm_skip_cword(entry, end);
+    _chm_skip_cword(entry, end);
 }
 
 /* parse a compressed dword */
@@ -968,7 +969,7 @@ static uint8_t *_chm_find_in_PMGL(uint8_t *page_buf, uint32_t block_len, const c
         if (!strcasecmp(buffer, objPath))
             return temp;
 
-        _chm_skip_PMGL_entry_data(&cur);
+        _chm_skip_PMGL_entry_data(&cur, end);
     }
 
     return NULL;
