@@ -86,53 +86,17 @@
 #define CHM_MAX_BLOCKS_CACHED 5
 #endif
 
-/*
- * architecture specific defines
- *
- * Note: as soon as C99 is more widespread, the below defines should
- * probably just use the C99 sized-int types.
- *
- * The following settings will probably work for many platforms.  The sizes
- * don't have to be exactly correct, but the types must accommodate at least as
- * many bits as they specify.
- */
-
-/* i386, 32-bit, Windows */
-#ifdef WIN32
 typedef unsigned char UChar;
-typedef __int16 Int16;
-typedef unsigned __int16 UInt16;
-typedef __int32 Int32;
-typedef unsigned __int32 UInt32;
-typedef __int64 Int64;
-typedef unsigned __int64 UInt64;
-
-/* x86-64 */
-/* Note that these may be appropriate for other 64-bit machines. */
-#elif defined(__LP64__)
-typedef unsigned char UChar;
-typedef short Int16;
-typedef unsigned short UInt16;
-typedef int Int32;
-typedef unsigned int UInt32;
-typedef long Int64;
-typedef unsigned long UInt64;
-
-/* I386, 32-bit, non-Windows */
-/* Sparc        */
-/* MIPS         */
-/* PPC          */
-#else
-typedef unsigned char UChar;
-typedef short Int16;
-typedef unsigned short UInt16;
-typedef long Int32;
-typedef unsigned long UInt32;
-typedef long long Int64;
-typedef unsigned long long UInt64;
-#endif
+typedef int16_t Int16;
+typedef uint16_t UInt16;
+typedef int32_t Int32;
+typedef uint32_t UInt32;
+typedef int64_t Int64;
+typedef uint64_t UInt64;
 
 #if defined(WIN32)
+// TODO: http://man7.org/linux/man-pages/man3/ffs.3.html defines ffs() argument
+// as int, not unsigned int
 static int ffs(unsigned int val) {
     int bit = 1, idx = 1;
     while (bit != 0 && (val & bit) == 0) {
@@ -820,31 +784,32 @@ struct chmFile *chm_open(const char *filename)
 
 /* close an ITS archive */
 void chm_close(struct chmFile *h) {
-    if (h != NULL) {
-        if (h->fd != CHM_NULL_FD)
-            CHM_CLOSE_FILE(h->fd);
-        h->fd = CHM_NULL_FD;
-
-        if (h->lzx_state)
-            LZXteardown(h->lzx_state);
-        h->lzx_state = NULL;
-
-        if (h->cache_blocks) {
-            int i;
-            for (i = 0; i < h->cache_num_blocks; i++) {
-                if (h->cache_blocks[i])
-                    free(h->cache_blocks[i]);
-            }
-            free(h->cache_blocks);
-            h->cache_blocks = NULL;
-        }
-
-        if (h->cache_block_indices)
-            free(h->cache_block_indices);
-        h->cache_block_indices = NULL;
-
-        free(h);
+    if (h == NULL) {
+        return;
     }
+    if (h->fd != CHM_NULL_FD)
+        CHM_CLOSE_FILE(h->fd);
+    h->fd = CHM_NULL_FD;
+
+    if (h->lzx_state)
+        LZXteardown(h->lzx_state);
+    h->lzx_state = NULL;
+
+    if (h->cache_blocks) {
+        int i;
+        for (i = 0; i < h->cache_num_blocks; i++) {
+            if (h->cache_blocks[i])
+                free(h->cache_blocks[i]);
+        }
+        free(h->cache_blocks);
+        h->cache_blocks = NULL;
+    }
+
+    if (h->cache_block_indices)
+        free(h->cache_block_indices);
+    h->cache_block_indices = NULL;
+
+    free(h);
 }
 
 /*
