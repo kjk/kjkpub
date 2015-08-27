@@ -87,9 +87,6 @@
 #endif
 
 typedef unsigned char UChar;
-typedef int16_t Int16;
-typedef uint16_t UInt16;
-typedef int32_t Int32;
 typedef uint32_t UInt32;
 typedef int64_t Int64;
 typedef uint64_t UInt64;
@@ -157,7 +154,7 @@ static int _unmarshal_uint16(unsigned char **pData,
 }
 #endif
 
-static int _unmarshal_int32(unsigned char **pData, unsigned int *pLenRemain, Int32 *dest) {
+static int _unmarshal_int32(unsigned char **pData, unsigned int *pLenRemain, int32_t *dest) {
     if (4 > *pLenRemain)
         return 0;
     *dest = (*pData)[0] | (*pData)[1] << 8 | (*pData)[2] << 16 | (*pData)[3] << 24;
@@ -231,9 +228,9 @@ static const char _CHMU_SPANINFO[] =
 #define _CHM_ITSF_V3_LEN (0x60)
 struct chmItsfHeader {
     char signature[4];     /*  0 (ITSF) */
-    Int32 version;         /*  4 */
-    Int32 header_len;      /*  8 */
-    Int32 unknown_000c;    /*  c */
+    int32_t version;         /*  4 */
+    int32_t header_len;      /*  8 */
+    int32_t unknown_000c;    /*  c */
     UInt32 last_modified;  /* 10 */
     UInt32 lang_id;        /* 14 */
     UChar dir_uuid[16];    /* 18 */
@@ -302,17 +299,17 @@ static int _unmarshal_itsf_header(unsigned char **pData, unsigned int *pDataLen,
 #define _CHM_ITSP_V1_LEN (0x54)
 struct chmItspHeader {
     char signature[4];      /*  0 (ITSP) */
-    Int32 version;          /*  4 */
-    Int32 header_len;       /*  8 */
-    Int32 unknown_000c;     /*  c */
+    int32_t version;          /*  4 */
+    int32_t header_len;       /*  8 */
+    int32_t unknown_000c;     /*  c */
     UInt32 block_len;       /* 10 */
-    Int32 blockidx_intvl;   /* 14 */
-    Int32 index_depth;      /* 18 */
-    Int32 index_root;       /* 1c */
-    Int32 index_head;       /* 20 */
-    Int32 unknown_0024;     /* 24 */
+    int32_t blockidx_intvl;   /* 14 */
+    int32_t index_depth;      /* 18 */
+    int32_t index_root;       /* 1c */
+    int32_t index_head;       /* 20 */
+    int32_t unknown_0024;     /* 24 */
     UInt32 num_blocks;      /* 28 */
-    Int32 unknown_002c;     /* 2c */
+    int32_t unknown_002c;     /* 2c */
     UInt32 lang_id;         /* 30 */
     UChar system_uuid[16];  /* 34 */
     UChar unknown_0044[16]; /* 44 */
@@ -362,8 +359,8 @@ struct chmPmglHeader {
     char signature[4];   /*  0 (PMGL) */
     UInt32 free_space;   /*  4 */
     UInt32 unknown_0008; /*  8 */
-    Int32 block_prev;    /*  c */
-    Int32 block_next;    /* 10 */
+    int32_t block_prev;    /*  c */
+    int32_t block_next;    /* 10 */
 };                       /* __attribute__ ((aligned (1))); */
 
 static int _unmarshal_pmgl_header(unsigned char **pData, unsigned int *pDataLen,
@@ -525,8 +522,8 @@ struct chmFile {
     UInt64 dir_offset;
     UInt64 dir_len;
     UInt64 data_offset;
-    Int32 index_root;
-    Int32 index_head;
+    int32_t index_root;
+    int32_t index_head;
     UInt32 block_len;
 
     UInt64 span;
@@ -547,7 +544,7 @@ struct chmFile {
     /* cache for decompressed blocks */
     UChar **cache_blocks;
     UInt64 *cache_block_indices;
-    Int32 cache_num_blocks;
+    int32_t cache_num_blocks;
 };
 
 /*
@@ -978,7 +975,7 @@ static UChar *_chm_find_in_PMGL(UChar *page_buf, UInt32 block_len, const char *o
 }
 
 /* find which block should be searched next for the entry; -1 if no block */
-static Int32 _chm_find_in_PMGI(UChar *page_buf, UInt32 block_len, const char *objPath) {
+static int32_t _chm_find_in_PMGI(UChar *page_buf, UInt32 block_len, const char *objPath) {
     /* XXX: modify this to do a binary search using the nice index structure
      *      that is provided for us
      */
@@ -1023,7 +1020,7 @@ int chm_resolve_object(struct chmFile *h, const char *objPath, struct chmUnitInf
      * XXX: implement caching scheme for dir pages
      */
 
-    Int32 curPage;
+    int32_t curPage;
 
     /* buffer to hold whatever page we're looking at */
     /* RWE 6/12/2003 */
@@ -1330,7 +1327,7 @@ LONGINT64 chm_retrieve_object(struct chmFile *h, struct chmUnitInfo *ui, unsigne
 
 /* enumerate the objects in the .chm archive */
 int chm_enumerate(struct chmFile *h, int what, CHM_ENUMERATOR e, void *context) {
-    Int32 curPage;
+    int32_t curPage;
 
     /* buffer to hold whatever page we're looking at */
     /* RWE 6/12/2003 */
@@ -1440,7 +1437,7 @@ int chm_enumerate_dir(struct chmFile *h, const char *prefix, int what, CHM_ENUME
      * XXX: do this efficiently (i.e. using the tree index)
      */
 
-    Int32 curPage;
+    int32_t curPage;
 
     /* buffer to hold whatever page we're looking at */
     /* RWE 6/12/2003 */
