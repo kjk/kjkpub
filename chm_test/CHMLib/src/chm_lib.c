@@ -78,11 +78,20 @@
 #define CHM_CLOSE_FILE(fd) close((fd))
 #endif
 
+#define CHM_DEBUG 1
+
 /*
  * defines related to tuning
  */
 #ifndef CHM_MAX_BLOCKS_CACHED
 #define CHM_MAX_BLOCKS_CACHED 5
+#endif
+
+#ifdef CHM_DEBUG
+    #define dbglogf(...) fprintf(stderr, __VA_ARGS__)
+#else
+    /* no-op */
+    #define dbglogf(...)
 #endif
 
 #if defined(WIN32)
@@ -1148,9 +1157,7 @@ static int64_t _chm_decompress_block(struct chmFile *h, uint64_t block, uint8_t 
             /* check if we most recently decompressed the previous block */
             if (h->lzx_last_block != (int)curBlockIdx) {
                 if ((curBlockIdx % h->reset_blkcount) == 0) {
-#ifdef CHM_DEBUG
-                    fprintf(stderr, "***RESET (1)***\n");
-#endif
+                    dbglogf("***RESET (1)***\n");
                     LZXreset(h->lzx_state);
                 }
 
@@ -1166,17 +1173,13 @@ static int64_t _chm_decompress_block(struct chmFile *h, uint64_t block, uint8_t 
                 lbuffer = h->cache_blocks[indexSlot];
 
 /* decompress the previous block */
-#ifdef CHM_DEBUG
-                fprintf(stderr, "Decompressing block #%4d (EXTRA)\n", curBlockIdx);
-#endif
+                dbglogf("Decompressing block #%4d (EXTRA)\n", curBlockIdx);
                 if (!_chm_get_cmpblock_bounds(h, curBlockIdx, &cmpStart, &cmpLen) || cmpLen < 0 ||
                     cmpLen > h->reset_table.block_len + 6144 ||
                     _chm_fetch_bytes(h, cbuffer, cmpStart, cmpLen) != cmpLen ||
                     LZXdecompress(h->lzx_state, cbuffer, lbuffer, (int)cmpLen,
                                   (int)h->reset_table.block_len) != DECR_OK) {
-#ifdef CHM_DEBUG
-                    fprintf(stderr, "   (DECOMPRESS FAILED!)\n");
-#endif
+                    dbglogf("   (DECOMPRESS FAILED!)\n");
                     free(cbuffer);
                     return 0;
                 }
@@ -1186,9 +1189,7 @@ static int64_t _chm_decompress_block(struct chmFile *h, uint64_t block, uint8_t 
         }
     } else {
         if ((block % h->reset_blkcount) == 0) {
-#ifdef CHM_DEBUG
-            fprintf(stderr, "***RESET (2)***\n");
-#endif
+            dbglogf("***RESET (2)***\n");
             LZXreset(h->lzx_state);
         }
     }
@@ -1206,16 +1207,12 @@ static int64_t _chm_decompress_block(struct chmFile *h, uint64_t block, uint8_t 
     *ubuffer = lbuffer;
 
 /* decompress the block we actually want */
-#ifdef CHM_DEBUG
-    fprintf(stderr, "Decompressing block #%4d (REAL )\n", block);
-#endif
+    dbglogf("Decompressing block #%4d (REAL )\n", (int)block);
     if (!_chm_get_cmpblock_bounds(h, block, &cmpStart, &cmpLen) ||
         _chm_fetch_bytes(h, cbuffer, cmpStart, cmpLen) != cmpLen ||
         LZXdecompress(h->lzx_state, cbuffer, lbuffer, (int)cmpLen, (int)h->reset_table.block_len) !=
             DECR_OK) {
-#ifdef CHM_DEBUG
-        fprintf(stderr, "   (DECOMPRESS FAILED!)\n");
-#endif
+        dbglogf("   (DECOMPRESS FAILED!)\n");
         free(cbuffer);
         return 0;
     }
