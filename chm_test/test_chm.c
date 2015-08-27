@@ -16,6 +16,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#if 0
 // https://code.google.com/p/address-sanitizer/wiki/ExampleUseAfterFree
 int trigger_use_after_free(int i) {
     int *arr = (int *)malloc(sizeof(int) * 100);
@@ -41,6 +42,7 @@ int trigger_heap_out_of_bounds(int i) {
     free(arr);
     return res;
 }
+#endif
 
 static int _extract(struct chmFile *h, struct chmUnitInfo *ui) {
     int ui_path_len;

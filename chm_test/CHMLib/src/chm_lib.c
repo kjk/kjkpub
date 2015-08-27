@@ -1235,7 +1235,7 @@ static int64_t _chm_decompress_region(struct chmFile *h, uint8_t *buf, uint64_t 
     uint64_t nBlock, nOffset;
     uint64_t nLen;
     uint64_t gotLen;
-    uint8_t *ubuffer;
+    uint8_t *ubuffer = NULL;
 
     if (len <= 0)
         return 0;
