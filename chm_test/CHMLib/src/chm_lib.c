@@ -857,58 +857,52 @@ void chm_close(struct chmFile *h) {
  *                 invalidation of the previously cached block.
  */
 void chm_set_param(struct chmFile *h, int paramType, int paramVal) {
-    switch (paramType) {
-        case CHM_PARAM_MAX_BLOCKS_CACHED:
-            if (paramVal != h->cache_num_blocks) {
-                UChar **newBlocks;
-                UInt64 *newIndices;
-                int i;
-
-                /* allocate new cached blocks */
-                newBlocks = (UChar **)malloc(paramVal * sizeof(UChar *));
-                if (newBlocks == NULL)
-                    return;
-                newIndices = (UInt64 *)malloc(paramVal * sizeof(UInt64));
-                if (newIndices == NULL) {
-                    free(newBlocks);
-                    return;
-                }
-                for (i = 0; i < paramVal; i++) {
-                    newBlocks[i] = NULL;
-                    newIndices[i] = 0;
-                }
-
-                /* re-distribute old cached blocks */
-                if (h->cache_blocks) {
-                    for (i = 0; i < h->cache_num_blocks; i++) {
-                        int newSlot = (int)(h->cache_block_indices[i] % paramVal);
-
-                        if (h->cache_blocks[i]) {
-                            /* in case of collision, destroy newcomer */
-                            if (newBlocks[newSlot]) {
-                                free(h->cache_blocks[i]);
-                                h->cache_blocks[i] = NULL;
-                            } else {
-                                newBlocks[newSlot] = h->cache_blocks[i];
-                                newIndices[newSlot] = h->cache_block_indices[i];
-                            }
-                        }
-                    }
-
-                    free(h->cache_blocks);
-                    free(h->cache_block_indices);
-                }
-
-                /* now, set new values */
-                h->cache_blocks = newBlocks;
-                h->cache_block_indices = newIndices;
-                h->cache_num_blocks = paramVal;
-            }
-            break;
-
-        default:
-            break;
+    if (CHM_PARAM_MAX_BLOCKS_CACHED != paramType) {
+        return;
     }
+    if (paramVal == h->cache_num_blocks) {
+        return;
+    }
+
+    UChar **newBlocks;
+    UInt64 *newIndices;
+    int i;
+
+    /* allocate new cached blocks */
+    newBlocks = (UChar **)calloc(paramVal, sizeof(UChar *));
+    if (newBlocks == NULL)
+        return;
+    newIndices = (UInt64 *)calloc(paramVal, sizeof(UInt64));
+    if (newIndices == NULL) {
+        free(newBlocks);
+        return;
+    }
+
+    /* re-distribute old cached blocks */
+    if (h->cache_blocks) {
+        for (i = 0; i < h->cache_num_blocks; i++) {
+            int newSlot = (int)(h->cache_block_indices[i] % paramVal);
+
+            if (h->cache_blocks[i]) {
+                /* in case of collision, destroy newcomer */
+                if (newBlocks[newSlot]) {
+                    free(h->cache_blocks[i]);
+                    h->cache_blocks[i] = NULL;
+                } else {
+                    newBlocks[newSlot] = h->cache_blocks[i];
+                    newIndices[newSlot] = h->cache_block_indices[i];
+                }
+            }
+        }
+
+        free(h->cache_blocks);
+        free(h->cache_block_indices);
+    }
+
+    /* now, set new values */
+    h->cache_blocks = newBlocks;
+    h->cache_block_indices = newIndices;
+    h->cache_num_blocks = paramVal;
 }
 
 /*
@@ -917,8 +911,9 @@ void chm_set_param(struct chmFile *h, int paramType, int paramVal) {
 
 /* skip a compressed dword */
 static void _chm_skip_cword(UChar **pEntry) {
-    while (*(*pEntry)++ >= 0x80)
-        ;
+    while (*(*pEntry)++ >= 0x80) {
+        /* do nothing */
+    }
 }
 
 /* skip the data from a PMGL entry */
