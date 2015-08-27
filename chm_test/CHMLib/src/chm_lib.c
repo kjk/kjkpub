@@ -78,8 +78,6 @@
 #define CHM_CLOSE_FILE(fd) close((fd))
 #endif
 
-#define CHM_DEBUG 1
-
 /*
  * defines related to tuning
  */
@@ -88,10 +86,10 @@
 #endif
 
 #ifdef CHM_DEBUG
-    #define dbglogf(...) fprintf(stderr, __VA_ARGS__)
+#define dbglogf(...) fprintf(stderr, __VA_ARGS__)
 #else
-    /* no-op */
-    #define dbglogf(...)
+/* no-op */
+#define dbglogf(...)
 #endif
 
 #if defined(WIN32)
@@ -697,6 +695,8 @@ struct chmFile *chm_open(const char *filename)
     /* By default, compression is enabled. */
     newHandle->compression_enabled = 1;
 
+    chm_set_param(newHandle, CHM_PARAM_MAX_BLOCKS_CACHED, CHM_MAX_BLOCKS_CACHED);
+
 /* Jed, Sun Jun 27: 'span' doesn't seem to be used anywhere?! */
 #if 0
     /* fetch span */
@@ -775,9 +775,6 @@ struct chmFile *chm_open(const char *filename)
 #endif
         }
     }
-
-    /* initialize cache */
-    chm_set_param(newHandle, CHM_PARAM_MAX_BLOCKS_CACHED, CHM_MAX_BLOCKS_CACHED);
 
     return newHandle;
 }
@@ -1134,15 +1131,22 @@ static int _chm_get_cmpblock_bounds(struct chmFile *h, uint64_t block, uint64_t 
 /* decompress the block */
 static int64_t _chm_decompress_block(struct chmFile *h, uint64_t block, uint8_t **ubuffer) {
     uint8_t *cbuffer = malloc(((unsigned int)h->reset_table.block_len + 6144));
-    uint64_t cmpStart;                                           /* compressed start  */
-    int64_t cmpLen;                                              /* compressed len    */
-    int indexSlot;                                               /* cache index slot  */
-    uint8_t *lbuffer;                                            /* local buffer ptr  */
-    uint32_t blockAlign = (uint32_t)(block % h->reset_blkcount); /* reset intvl. aln. */
-    uint32_t i;                                                  /* local loop index  */
+    uint64_t cmpStart;   /* compressed start  */
+    int64_t cmpLen;      /* compressed len    */
+    int indexSlot;       /* cache index slot  */
+    uint8_t *lbuffer;    /* local buffer ptr  */
+    uint32_t blockAlign; /* reset intvl. aln. */
+    uint32_t i;          /* local loop index  */
 
-    if (cbuffer == NULL)
+    if (cbuffer == NULL) {
         return -1;
+    }
+
+    if (h->reset_blkcount == 0) {
+        return -1;
+    }
+
+    blockAlign = (uint32_t)(block % h->reset_blkcount); /* reset intvl. aln. */
 
     /* let the caching system pull its weight! */
     if (block - blockAlign <= h->lzx_last_block && block >= h->lzx_last_block)
@@ -1172,7 +1176,7 @@ static int64_t _chm_decompress_block(struct chmFile *h, uint64_t block, uint8_t 
                 h->cache_block_indices[indexSlot] = curBlockIdx;
                 lbuffer = h->cache_blocks[indexSlot];
 
-/* decompress the previous block */
+                /* decompress the previous block */
                 dbglogf("Decompressing block #%4d (EXTRA)\n", curBlockIdx);
                 if (!_chm_get_cmpblock_bounds(h, curBlockIdx, &cmpStart, &cmpLen) || cmpLen < 0 ||
                     cmpLen > h->reset_table.block_len + 6144 ||
@@ -1206,7 +1210,7 @@ static int64_t _chm_decompress_block(struct chmFile *h, uint64_t block, uint8_t 
     lbuffer = h->cache_blocks[indexSlot];
     *ubuffer = lbuffer;
 
-/* decompress the block we actually want */
+    /* decompress the block we actually want */
     dbglogf("Decompressing block #%4d (REAL )\n", (int)block);
     if (!_chm_get_cmpblock_bounds(h, block, &cmpStart, &cmpLen) ||
         _chm_fetch_bytes(h, cbuffer, cmpStart, cmpLen) != cmpLen ||
