@@ -1130,7 +1130,7 @@ static int _chm_get_cmpblock_bounds(struct chmFile *h, uint64_t block, uint64_t 
 
 /* decompress the block */
 static int64_t _chm_decompress_block(struct chmFile *h, uint64_t block, uint8_t **ubuffer) {
-    uint8_t *cbuffer = malloc(((unsigned int)h->reset_table.block_len + 6144));
+    uint8_t *cbuffer;
     uint64_t cmpStart;   /* compressed start  */
     int64_t cmpLen;      /* compressed len    */
     int indexSlot;       /* cache index slot  */
@@ -1138,6 +1138,7 @@ static int64_t _chm_decompress_block(struct chmFile *h, uint64_t block, uint8_t 
     uint32_t blockAlign; /* reset intvl. aln. */
     uint32_t i;          /* local loop index  */
 
+    cbuffer = (uint8_t*)malloc(((unsigned int)h->reset_table.block_len + 6144));
     if (cbuffer == NULL) {
         return -1;
     }

@@ -219,6 +219,10 @@ void LZXteardown(struct LZXstate *pState) {
 int LZXreset(struct LZXstate *pState) {
     int i;
 
+    if (pState == NULL) {
+        return DECR_ILLEGALDATA;
+    }
+
     pState->R0 = pState->R1 = pState->R2 = 1;
     pState->header_read = 0;
     pState->frames_read = 0;
