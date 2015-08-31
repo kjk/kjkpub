@@ -16,7 +16,8 @@ var (
 	lf             byte = 0xa // \n, 10
 	textFileExtArr      = []string{
 		".txt", ".cs", ".cpp", ".cc", ".h", ".md", ".go", ".html", ".xml", ".csproj",
-		".sln", ".bat", ".sh", ".py",
+		".sln", ".bat", ".sh", ".py", ".lua", ".asm", ".json", ".js", ".m", ".mm",
+		".pl",
 	}
 	textFileExtMap = make(map[string]bool)
 	results        []Result
@@ -116,11 +117,12 @@ func main() {
 		fmt.Printf("filepath.Walk() failed with %s\n", err)
 		return
 	}
-	var nMixed, nCr, nLf, nCrLf int
+	var nCr, nLf, nCrLf int
+	var mixed []Result
 	for _, r := range results {
 		c := r.Counts
 		if c.Mixed() {
-			nMixed++
+			mixed = append(mixed, r)
 		} else if c.CrCount > 0 {
 			nCr++
 		} else if c.LfCount > 0 {
@@ -130,16 +132,20 @@ func main() {
 		}
 	}
 	fmt.Printf("%d files\n", len(results))
+	nMixed := len(mixed)
 	if nMixed > 0 {
-		fmt.Printf("  %d mixed\n", nMixed)
+		fmt.Printf("%d mixed:\n", nMixed)
+		for _, r := range mixed {
+			fmt.Printf("  %s\n", r.Path)
+		}
 	}
 	if nCr > 0 {
-		fmt.Printf("  %d with CR (old mac)\n", nCr)
+		fmt.Printf("%d with CR (old mac)\n", nCr)
 	}
 	if nLf > 0 {
-		fmt.Printf("  %d with LF (unix)\n", nLf)
+		fmt.Printf("%d with LF (unix)\n", nLf)
 	}
 	if nCrLf > 0 {
-		fmt.Printf("  %d with CR LF (windows)\n", nCrLf)
+		fmt.Printf("%d with CR LF (windows)\n", nCrLf)
 	}
 }
