@@ -3,3 +3,4 @@ scripts/awscreds.py
 gobench/bin
 xcdebugger/
 *.userprefs
+pdf_js_test/node_modules/
