@@ -29,7 +29,7 @@ func main() {
 	tokenSource := &TokenSource{
 		AccessToken: personalAccessToken,
 	}
-	oauthClient := oauth2.NewClient(nil, tokenSource)
+	oauthClient := oauth2.NewClient(oauth2.NoContext, tokenSource)
 	client := github.NewClient(oauthClient)
 	user, _, err := client.Users.Get("")
 	if err != nil {
