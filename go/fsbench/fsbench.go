@@ -67,7 +67,7 @@ func test(pathBase string, d []byte, parts int, workers int) {
 	close(c)
 	wg.Wait()
 	dur := time.Since(timeStart)
-	fmt.Printf("Parts: %4d, workers: %2d, time: %s\n", parts, workers, dur)
+	fmt.Printf("Files: %4d, workers: %2d, time: %s\n", parts, workers, dur)
 	for _, fd := range fileDatas {
 		os.Remove(fd.Path)
 	}
