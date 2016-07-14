@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-var (
+const (
 	gb = 1024 * 1024 * 1024
 )
 
@@ -25,6 +25,13 @@ func genFileData(fileSize int) []byte {
 type FileData struct {
 	Data []byte
 	Path string
+}
+
+// MbsPerSec returns number of megabytes per second given number of bytes and
+// duration
+func MbsPerSec(nBytes int64, dur time.Duration) float64 {
+	mbs := float64(nBytes) / (1024 * 1024)
+	return (mbs * float64(dur)) / float64(time.Second)
 }
 
 func test(pathBase string, d []byte, parts int, workers int) {
@@ -67,7 +74,9 @@ func test(pathBase string, d []byte, parts int, workers int) {
 	close(c)
 	wg.Wait()
 	dur := time.Since(timeStart)
-	fmt.Printf("Files: %4d, workers: %2d, time: %s\n", parts, workers, dur)
+	nBytes := int64(len(d))
+	mbsPerSec := MbsPerSec(nBytes, dur)
+	fmt.Printf("Files: %4d, workers: %2d, time: %s, %.2f MBs/sec\n", parts, workers, dur, mbsPerSec)
 	for _, fd := range fileDatas {
 		os.Remove(fd.Path)
 	}
