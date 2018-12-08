@@ -65,6 +65,11 @@ void classTemplateTypeDeduction() {
     cout << "p: " << &p << "\n";
 }
 
+void classTemplateTypeDeduction2() {
+    vector v{1, 2, 3};
+    cout << "v[0] = " << v[0] << "\n";
+}
+
 int const a = 3; // or int constexpr
 
 void ifConstExpr() {
@@ -84,6 +89,7 @@ int main(int argc, char **argv) {
     //emplaceBack();
     //nestedNamespace();
     //classTemplateTypeDeduction();
-    ifConstExpr();
+    classTemplateTypeDeduction2();
+    //ifConstExpr();
     return 0;
 }
