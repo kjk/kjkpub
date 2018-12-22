@@ -39,7 +39,6 @@ func main() {
 		fmt.Printf("Cef directory '%s' already exists. To force re-download, delete the directory\n", dstDir)
 		os.Exit(0)
 	}
-	must(os.Mkdir(dstDir, 0755))
 
 	parts := strings.Split(dlURL32, "/")
 	archiveName := parts[len(parts)-1]
@@ -69,7 +68,7 @@ func main() {
 		err = dstFile.Close()
 		must(err)
 		resp.Body.Close()
-		fmt.Printf("Downloaded to %s in %s\n", dstFile, time.Since(timeStart))
+		fmt.Printf("Downloaded to %s in %s\n", archivePath, time.Since(timeStart))
 	}
 
 	timeStart = time.Now()
@@ -95,9 +94,15 @@ func main() {
 		}
 		if !fi.Mode().IsRegular() {
 			fmt.Printf("Skipping non-regular file '%s'\n", fi.Name())
+			continue
 		}
-
-		name := filepath.FromSlash(fi.Name())
+		// must convert a name like:
+		// cef_binary_3.3578.1860.g36610bd_windows32/libcef_dll/wrapper_types.h
+		// into:
+		// libcef_dll\wrapper_types.h
+		parts := strings.Split(hdr.Name, "/")
+		name := strings.Join(parts[1:], "/")
+		name = filepath.FromSlash(name)
 		dstFilePath := filepath.Join(dstDir, name)
 		fmt.Printf("Extracting %s to %s...\n", name, dstFilePath)
 		dir := filepath.Dir(dstFilePath)

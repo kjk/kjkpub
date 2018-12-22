@@ -2,3 +2,4 @@ CefTest/cef/
 Debug/
 Release/
 .vs/
+*.tar.bz2
