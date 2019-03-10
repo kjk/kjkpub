@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	// You must register the app at https://github.com/settings/applications
+	// You must register the app at https://github.com/settings/developers
 	// Set callback to http://127.0.0.1:7000/github_oauth_cb
 	// Set ClientId and ClientSecret to
 	oauthConf = &oauth2.Config{
